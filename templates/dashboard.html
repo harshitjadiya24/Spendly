@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Spendly{% endblock %}
+
+{% block content %}
+
+<section class="dashboard">
+  <div class="dashboard-header">
+    <h1 class="dashboard-title">Your expenses</h1>
+    <p class="dashboard-total">
+      Total this month: <strong>₹{{ "%.2f"|format(total) }}</strong>
+    </p>
+    <a href="{{ url_for('add_expense') }}" class="btn-primary">+ Add expense</a>
+  </div>
+
+  <div class="dashboard-card">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="auth-{{ category }}">{{ message }}</div>
+    {% endfor %}
+    {% endwith %}
+
+    {% if expenses %}
+    <table class="expense-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Category</th>
+          <th>Description</th>
+          <th class="col-amount">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in expenses %}
+        <tr>
+          <td>{{ e.date }}</td>
+          <td><span class="cat-badge">{{ e.category }}</span></td>
+          <td>{{ e.description or "—" }}</td>
+          <td class="col-amount">₹{{ "%.2f"|format(e.amount) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="dashboard-empty">
+      <p>No expenses yet.</p>
+      <p>Start tracking — <a href="{{ url_for('add_expense') }}">add your first expense</a>.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

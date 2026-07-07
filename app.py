@@ -77,7 +77,7 @@ def login():
                 session["user_id"] = user["id"]
                 session["user_name"] = user["name"]
                 flash(f"Welcome back, {user['name']}!", "success")
-                return redirect(url_for("dashboard"))
+                return redirect(url_for("profile"))
 
         return render_template("login.html", error=error)
 
@@ -122,6 +122,52 @@ def dashboard():
     ).fetchone()[0]
     db.close()
     return render_template("dashboard.html", expenses=expenses, total=total)
+
+
+@app.route("/ledger")
+def ledger():
+    if "user_id" not in session:
+        flash("Please sign in to view your ledger.", "error")
+        return redirect(url_for("login"))
+
+    db = get_db()
+    expenses = db.execute(
+        "SELECT * FROM expenses WHERE user_id = ? ORDER BY date ASC, id ASC",
+        (session["user_id"],),
+    ).fetchall()
+
+    total_income = db.execute(
+        "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE user_id = ?",
+        (session["user_id"],),
+    ).fetchone()[0]
+
+    categories = db.execute(
+        "SELECT category, SUM(amount) as total, COUNT(*) as count "
+        "FROM expenses WHERE user_id = ? GROUP BY category ORDER BY total DESC",
+        (session["user_id"],),
+    ).fetchall()
+
+    rows = []
+    running = 0
+    for e in expenses:
+        running += e["amount"]
+        rows.append({
+            "id": e["id"],
+            "date": e["date"],
+            "category": e["category"],
+            "description": e["description"] or "",
+            "amount": e["amount"],
+            "running": running,
+        })
+
+    db.close()
+    return render_template(
+        "ledger.html",
+        rows=rows,
+        categories=categories,
+        total_income=total_income,
+        balance=running,
+    )
 
 
 @app.route("/profile", methods=["GET", "POST"])

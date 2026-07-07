@@ -26,8 +26,9 @@
         <div class="nav-links">
           {% if session.user_id %}
           <span class="nav-greeting">Hi, {{ session.user_name }}</span>
-          <a href="{{ url_for('dashboard') }}">Dashboard</a>
-          <a href="{{ url_for('profile') }}">Profile</a>
+          <a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}class="nav-active"{% endif %}>Dashboard</a>
+          <a href="{{ url_for('ledger') }}" {% if request.endpoint == 'ledger' %}class="nav-active"{% endif %}>Ledger</a>
+          <a href="{{ url_for('profile') }}" {% if request.endpoint == 'profile' %}class="nav-active"{% endif %}>Profile</a>
           <a href="{{ url_for('logout') }}">Sign out</a>
           {% else %}
           <a href="{{ url_for('login') }}">Sign in</a>

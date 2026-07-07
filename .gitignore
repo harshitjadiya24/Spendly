@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 *.pyo
 .env
+spendly.db
 .DS_Store
 .claude/plans/
 .claude/settings.local.json

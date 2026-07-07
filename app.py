@@ -124,9 +124,108 @@ def dashboard():
     return render_template("dashboard.html", expenses=expenses, total=total)
 
 
-@app.route("/profile")
+@app.route("/profile", methods=["GET", "POST"])
 def profile():
-    return "Profile page — coming in Step 4"
+    if "user_id" not in session:
+        flash("Please sign in to view your profile.", "error")
+        return redirect(url_for("login"))
+
+    db = get_db()
+
+    if request.method == "POST":
+        action = request.form.get("action")
+
+        if action == "update_profile":
+            name = request.form.get("name", "").strip()
+            email = request.form.get("email", "").strip().lower()
+            error = None
+
+            if not name:
+                error = "Name is required."
+            elif not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+                error = "Invalid email address."
+            else:
+                existing = db.execute(
+                    "SELECT id FROM users WHERE email = ? AND id != ?",
+                    (email, session["user_id"]),
+                ).fetchone()
+                if existing:
+                    error = "This email is already taken."
+
+            if error:
+                user = db.execute(
+                    "SELECT * FROM users WHERE id = ?", (session["user_id"],)
+                ).fetchone()
+                stats = _get_user_stats(db, session["user_id"])
+                db.close()
+                return render_template("profile.html", user=user, stats=stats, error=error)
+
+            db.execute(
+                "UPDATE users SET name = ?, email = ? WHERE id = ?",
+                (name, email, session["user_id"]),
+            )
+            db.commit()
+            session["user_name"] = name
+            db.close()
+            flash("Profile updated successfully.", "success")
+            return redirect(url_for("profile"))
+
+        elif action == "change_password":
+            current = request.form.get("current_password", "")
+            new_pass = request.form.get("new_password", "")
+            confirm = request.form.get("confirm_password", "")
+            error = None
+
+            user = db.execute(
+                "SELECT * FROM users WHERE id = ?", (session["user_id"],)
+            ).fetchone()
+
+            if not current or not new_pass or not confirm:
+                error = "All password fields are required."
+            elif not check_password_hash(user["password_hash"], current):
+                error = "Current password is incorrect."
+            elif len(new_pass) < 8:
+                error = "New password must be at least 8 characters."
+            elif new_pass != confirm:
+                error = "New passwords do not match."
+
+            if error:
+                stats = _get_user_stats(db, session["user_id"])
+                db.close()
+                return render_template("profile.html", user=user, stats=stats, pw_error=error)
+
+            db.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (generate_password_hash(new_pass), session["user_id"]),
+            )
+            db.commit()
+            db.close()
+            flash("Password changed successfully.", "success")
+            return redirect(url_for("profile"))
+
+    user = db.execute(
+        "SELECT * FROM users WHERE id = ?", (session["user_id"],)
+    ).fetchone()
+    stats = _get_user_stats(db, session["user_id"])
+    db.close()
+    return render_template("profile.html", user=user, stats=stats)
+
+
+def _get_user_stats(db, user_id):
+    total_expenses = db.execute(
+        "SELECT COUNT(*) FROM expenses WHERE user_id = ?", (user_id,)
+    ).fetchone()[0]
+    total_amount = db.execute(
+        "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE user_id = ?", (user_id,)
+    ).fetchone()[0]
+    categories = db.execute(
+        "SELECT COUNT(DISTINCT category) FROM expenses WHERE user_id = ?", (user_id,)
+    ).fetchone()[0]
+    return {
+        "total_expenses": total_expenses,
+        "total_amount": total_amount,
+        "categories": categories,
+    }
 
 
 @app.route("/expenses/add")

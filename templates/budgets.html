@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Budgets — Spendly{% endblock %}
+
+{% block content %}
+
+<section class="dashboard">
+  <div class="dashboard-header">
+    <div>
+      <h1 class="dashboard-title">Budgets</h1>
+      <form method="GET" action="{{ url_for('budgets') }}" class="month-form">
+        <select name="month" class="form-input month-select" onchange="this.form.submit()">
+          {% for m in avail_months %}
+          <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+    <a href="{{ url_for('dashboard') }}" class="btn-ghost">Back to dashboard</a>
+  </div>
+
+  <div class="dashboard-card">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="auth-{{ category }}">{{ message }}</div>
+    {% endfor %}
+    {% endwith %}
+
+    <h2 style="font-family:var(--font-display);font-size:1.1rem;color:var(--ink);margin-bottom:1.25rem;">Set monthly budgets</h2>
+
+    <form method="POST" action="{{ url_for('budgets', month=month) }}" class="budget-form">
+      <div class="budget-form-row">
+        <select name="category" class="form-input" style="width:auto;" required>
+          <option value="">Category</option>
+          {% for cat in categories %}
+          <option value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+        <input type="text" name="amount" class="form-input" style="width:120px;" placeholder="Amount" required>
+        <button type="submit" class="btn-primary btn-sm">Set budget</button>
+      </div>
+    </form>
+
+    {% if budgets %}
+    <div style="margin-top:2rem;">
+      {% for b in budgets %}
+      {% set pct = (b.spent / b.amount * 100)|round %}
+      {% set over = b.spent > b.amount %}
+      <div class="budget-row">
+        <div class="budget-row-header">
+          <span class="budget-cat">{{ b.category }}</span>
+          <span class="budget-numbers">
+            ₹{{ "%.0f"|format(b.spent) }} / ₹{{ "%.0f"|format(b.amount) }}
+            {% if over %}
+            <span class="budget-over">({{ pct }}%)</span>
+            {% else %}
+            <span class="budget-pct">{{ pct }}%</span>
+            {% endif %}
+          </span>
+        </div>
+        <div class="budget-track">
+          <div class="budget-bar {% if over %}budget-bar-over{% elif pct > 80 %}budget-bar-warn{% endif %}"
+               style="width:{{ [pct, 100]|min }}%"></div>
+        </div>
+        <form method="POST" action="{{ url_for('delete_budget', id=b.id) }}" style="margin-top:0.25rem;">
+          <button type="submit" class="btn-ghost-sm" style="color:var(--danger);">Remove</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="dashboard-empty" style="margin-top:1rem;">
+      <p>No budgets set for {{ month }}.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

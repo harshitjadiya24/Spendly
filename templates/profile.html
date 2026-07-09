@@ -6,13 +6,25 @@
 
 <section class="profile">
   <div class="profile-header">
-    <div class="profile-avatar">{{ user.name[:1] }}</div>
+    <div class="profile-avatar-wrap" id="avatarWrap" title="Change profile photo">
+      {% if user.photo %}
+      <img src="{{ url_for('static', filename='uploads/' + user.photo) }}" alt="Photo" class="profile-img">
+      {% else %}
+      <div class="profile-avatar">{{ user.name[:1] }}</div>
+      {% endif %}
+      <div class="avatar-overlay">📷</div>
+    </div>
     <div>
       <h1 class="profile-name">{{ user.name }}</h1>
       <p class="profile-email">{{ user.email }}</p>
     </div>
     <span class="profile-joined">Member since {{ user.created_at[:10] }}</span>
   </div>
+
+  <form method="POST" action="{{ url_for('profile') }}" enctype="multipart/form-data" id="photoForm">
+    <input type="hidden" name="action" value="upload_photo">
+    <input type="file" id="photoInput" name="photo" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none">
+  </form>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
   {% for category, message in messages %}
@@ -31,6 +43,10 @@
         <div class="stat-card">
           <span class="stat-value">₹{{ "%.0f"|format(stats.total_amount) }}</span>
           <span class="stat-label">Total spent</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">₹{{ "%.0f"|format(stats.total_income) }}</span>
+          <span class="stat-label">Total income</span>
         </div>
         <div class="stat-card">
           <span class="stat-value">{{ stats.categories }}</span>
@@ -88,4 +104,16 @@
   </div>
 </section>
 
+{% block scripts %}
+<script>
+document.getElementById('avatarWrap').addEventListener('click', () => {
+  document.getElementById('photoInput').click();
+});
+document.getElementById('photoInput').addEventListener('change', () => {
+  if (document.getElementById('photoInput').files.length > 0) {
+    document.getElementById('photoForm').submit();
+  }
+});
+</script>
+{% endblock %}
 {% endblock %}

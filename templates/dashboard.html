@@ -2,18 +2,77 @@
 
 {% block title %}Dashboard — Spendly{% endblock %}
 
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+{% endblock %}
+
 {% block content %}
 
 <section class="dashboard">
   <div class="dashboard-header">
-    <h1 class="dashboard-title">Your expenses</h1>
-    <p class="dashboard-total">
-      Total this month: <strong>₹{{ "%.2f"|format(total) }}</strong>
-    </p>
-    <a href="{{ url_for('add_expense') }}" class="btn-primary">+ Add expense</a>
+    <div>
+      <h1 class="dashboard-title">Dashboard</h1>
+      <form method="GET" action="{{ url_for('dashboard') }}" class="month-form">
+        <select name="month" class="form-input month-select" onchange="this.form.submit()">
+          {% for m in avail_months %}
+          <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+    <div class="dashboard-metrics">
+      <div class="metric-sm">
+        <span class="metric-sm-label">Income</span>
+        <span class="metric-sm-value income">₹{{ "%.0f"|format(income) }}</span>
+      </div>
+      <div class="metric-sm">
+        <span class="metric-sm-label">Spent</span>
+        <span class="metric-sm-value spent">₹{{ "%.0f"|format(total) }}</span>
+      </div>
+    </div>
+    <a href="{{ url_for('add_expense') }}" class="btn-primary">+ Add</a>
   </div>
 
+  {# --- Trends chart --- #}
+  <div class="dashboard-card" style="margin-bottom:1.5rem;">
+    <h2 class="section-subtitle">Spending trends (12 months)</h2>
+    <canvas id="trendsChart" width="800" height="280" style="max-width:100%;"></canvas>
+  </div>
+
+  {# --- Budgets --- #}
+  {% if budgets %}
+  <div class="dashboard-card" style="margin-bottom:1.5rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <h2 class="section-subtitle" style="margin:0;">Monthly budgets</h2>
+      <a href="{{ url_for('budgets', month=month) }}" class="btn-ghost-sm">Manage</a>
+    </div>
+    {% for b in budgets %}
+    {% set pct = (b.spent / b.amount * 100)|round %}
+    {% set over = b.spent > b.amount %}
+    <div class="budget-row">
+      <div class="budget-row-header">
+        <span class="budget-cat">{{ b.category }}</span>
+        <span class="budget-numbers">
+          ₹{{ "%.0f"|format(b.spent) }} / ₹{{ "%.0f"|format(b.amount) }}
+          {% if over %}
+          <span class="budget-over">({{ pct }}%)</span>
+          {% else %}
+          <span class="budget-pct">{{ pct }}%</span>
+          {% endif %}
+        </span>
+      </div>
+      <div class="budget-track">
+        <div class="budget-bar {% if over %}budget-bar-over{% elif pct > 80 %}budget-bar-warn{% endif %}"
+             style="width:{{ [pct, 100]|min }}%"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# --- Transactions --- #}
   <div class="dashboard-card">
+    <h2 class="section-subtitle">Transactions — {{ month }}</h2>
     {% with messages = get_flashed_messages(with_categories=true) %}
     {% for category, message in messages %}
     <div class="auth-{{ category }}">{{ message }}</div>
@@ -25,29 +84,80 @@
       <thead>
         <tr>
           <th>Date</th>
+          <th>Type</th>
           <th>Category</th>
           <th>Description</th>
           <th class="col-amount">Amount</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
         {% for e in expenses %}
         <tr>
           <td>{{ e.date }}</td>
+          <td>{% if e.type == 'income' %}<span class="type-badge type-income">Income</span>{% else %}<span class="type-badge type-expense">Expense</span>{% endif %}</td>
           <td><span class="cat-badge">{{ e.category }}</span></td>
           <td>{{ e.description or "—" }}</td>
-          <td class="col-amount">₹{{ "%.2f"|format(e.amount) }}</td>
+          <td class="col-amount {% if e.type == 'income' %}income{% endif %}">₹{{ "%.2f"|format(e.amount) }}</td>
+          <td><a href="{{ url_for('edit_expense', id=e.id) }}" class="btn-ghost-sm">Edit</a></td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
     {% else %}
     <div class="dashboard-empty">
-      <p>No expenses yet.</p>
-      <p>Start tracking — <a href="{{ url_for('add_expense') }}">add your first expense</a>.</p>
+      <p>No transactions for {{ month }}.</p>
+      <p><a href="{{ url_for('add_expense') }}">Add your first transaction</a></p>
     </div>
     {% endif %}
   </div>
 </section>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+fetch('/api/trends')
+  .then(r => r.json())
+  .then(data => {
+    new Chart(document.getElementById('trendsChart'), {
+      type: 'line',
+      data: {
+        labels: data.map(d => d.month),
+        datasets: [
+          {
+            label: 'Spent',
+            data: data.map(d => d.spent),
+            borderColor: '#c0392b',
+            backgroundColor: 'rgba(192,57,43,0.08)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+          },
+          {
+            label: 'Income',
+            data: data.map(d => d.earned),
+            borderColor: '#1a472a',
+            backgroundColor: 'rgba(26,71,42,0.08)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'top' },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { callback: v => '₹' + v.toLocaleString() },
+          },
+        },
+      },
+    });
+  });
+</script>
 {% endblock %}

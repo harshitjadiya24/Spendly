@@ -9,3 +9,4 @@ spendly.db
 .claude/plans/
 .claude/settings.local.json
 .aider*
+static/uploads/

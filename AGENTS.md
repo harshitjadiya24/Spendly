@@ -20,15 +20,7 @@ The virtual environment is at `venv/` (gitignored). Activate with `source venv/b
 
 ## Route status
 
-Several routes return placeholder strings — they are student exercises:
-
-| Route | Step | Status |
-|-------|------|--------|
-| `/logout` | Step 3 | Placeholder |
-| `/profile` | Step 4 | Placeholder |
-| `/expenses/add` | Step 7 | Placeholder |
-| `/expenses/<id>/edit` | Step 8 | Placeholder |
-| `/expenses/<id>/delete` | Step 9 | Placeholder |
+All routes are fully implemented.
 
 ## Testing
 

@@ -18,16 +18,20 @@
 
   <div class="dashboard-metrics" style="margin-bottom:2rem;">
     <div class="metric-sm">
-      <span class="metric-sm-label">Borrowed outstanding</span>
+      <span class="metric-sm-label">Borrowed remaining</span>
       <span class="metric-sm-value spent" style="color:var(--danger);">₹{{ "{:,.0f}".format(total_borrowed) }}</span>
     </div>
     <div class="metric-sm">
-      <span class="metric-sm-label">Lent outstanding</span>
+      <span class="metric-sm-label">Lent remaining</span>
       <span class="metric-sm-value income">₹{{ "{:,.0f}".format(total_lent) }}</span>
     </div>
     <div class="metric-sm">
-      <span class="metric-sm-label">Monthly EMI total</span>
-      <span class="metric-sm-value spent">₹{{ "{:,.0f}".format(monthly_emi_total) }}</span>
+      <span class="metric-sm-label">Monthly EMI to pay</span>
+      <span class="metric-sm-value spent" style="color:var(--danger);">₹{{ "{:,.0f}".format(monthly_emi_pay) }}</span>
+    </div>
+    <div class="metric-sm">
+      <span class="metric-sm-label">Monthly EMI to receive</span>
+      <span class="metric-sm-value income">₹{{ "{:,.0f}".format(monthly_emi_receive) }}</span>
     </div>
   </div>
 
@@ -41,6 +45,7 @@
             <th>Type</th>
             <th>Total</th>
             <th>EMI</th>
+            <th>Freq</th>
             <th>Progress</th>
             <th>Remaining</th>
             <th>Next EMI</th>
@@ -61,6 +66,7 @@
             </td>
             <td class="col-amt">₹{{ "{:,.0f}".format(l.total_amount) }}</td>
             <td class="col-amt">₹{{ "{:,.0f}".format(l.emi_amount) }}</td>
+            <td style="font-size:0.78rem;color:var(--ink-muted);text-transform:capitalize;">{{ l.emi_frequency }}</td>
             <td style="min-width:160px;">
               <div style="display:flex;align-items:center;gap:0.6rem;">
                 <div class="budget-track" style="flex:1;height:6px;">
@@ -83,14 +89,16 @@
             </td>
             <td>
               <div style="display:flex;gap:0.3rem;">
-                {% if l.status == 'active' and l.remaining_emis > 0 and l.type == 'borrowed' %}
+                {% if l.status == 'active' and l.remaining_emis > 0 %}
                 <form method="POST" action="{{ url_for('pay_emi', id=l.id) }}" style="display:inline;">
-                  <button type="submit" class="btn-ghost-sm" style="color:var(--accent);border-color:var(--accent);">Pay EMI</button>
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn-ghost-sm" style="color:var(--accent);border-color:var(--accent);">{% if l.type == 'borrowed' %}Pay EMI{% else %}Record payment{% endif %}</button>
                 </form>
                 {% endif %}
                 <a href="{{ url_for('edit_loan', id=l.id) }}" class="btn-ghost-sm">Edit</a>
                 <form method="POST" action="{{ url_for('delete_loan', id=l.id) }}" style="display:inline;"
                       onsubmit="var f=this;showConfirm('Delete this loan?',function(){f.submit();});return false;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <button type="submit" class="btn-ghost-sm" style="color:var(--danger);">&times;</button>
                 </form>
               </div>

@@ -2,8 +2,10 @@ import re
 import csv
 import os
 import time
+import secrets
 from io import StringIO
-from datetime import datetime, date
+from functools import wraps
+from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, session, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -28,7 +30,6 @@ def allowed_file(filename):
 # ------------------------------------------------------------------ #
 
 def login_required(f):
-    from functools import wraps
     @wraps(f)
     def wrapper(*args, **kwargs):
         if "user_id" not in session:
@@ -36,6 +37,25 @@ def login_required(f):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return wrapper
+
+
+# ------------------------------------------------------------------ #
+# CSRF helpers                                                        #
+# ------------------------------------------------------------------ #
+
+@app.context_processor
+def inject_csrf_token():
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_hex(32)
+    return {"csrf_token": session["csrf_token"]}
+
+def validate_csrf():
+    if app.config.get("CSRF_DISABLED"):
+        return True
+    token = request.form.get("csrf_token")
+    if not token or token != session.get("csrf_token"):
+        return False
+    return True
 
 
 # ------------------------------------------------------------------ #
@@ -47,32 +67,38 @@ def landing():
     ctx = {}
     if "user_id" in session:
         db = get_db()
-        now = date.today()
-        month = f"{now.year}-{now.month:02d}"
-        categories = db.execute(
-            "SELECT category, COALESCE(SUM(amount), 0) as total FROM expenses "
-            "WHERE user_id = ? AND type = 'expense' AND strftime('%Y-%m', date) = ? "
-            "GROUP BY category ORDER BY total DESC",
-            (session["user_id"], month),
-        ).fetchall()
-        total_spent = db.execute(
-            "SELECT COALESCE(SUM(amount), 0) FROM expenses "
-            "WHERE user_id = ? AND type = 'expense' AND strftime('%Y-%m', date) = ?",
-            (session["user_id"], month),
-        ).fetchone()[0]
-        db.close()
-        ctx["live_categories"] = categories
-        ctx["live_total"] = round(total_spent)
-        ctx["live_month"] = month
+        try:
+            now = date.today()
+            month = f"{now.year}-{now.month:02d}"
+            categories = db.execute(
+                "SELECT category, COALESCE(SUM(amount), 0) as total FROM expenses "
+                "WHERE user_id = ? AND type = 'expense' AND strftime('%Y-%m', date) = ? "
+                "GROUP BY category ORDER BY total DESC",
+                (session["user_id"], month),
+            ).fetchall()
+            total_spent = db.execute(
+                "SELECT COALESCE(SUM(amount), 0) FROM expenses "
+                "WHERE user_id = ? AND type = 'expense' AND strftime('%Y-%m', date) = ?",
+                (session["user_id"], month),
+            ).fetchone()[0]
+            ctx["live_categories"] = categories
+            ctx["live_total"] = round(total_spent)
+            ctx["live_month"] = month
+        finally:
+            db.close()
     return render_template("landing.html", **ctx)
 
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
+        if not validate_csrf():
+            return render_template("register.html", error="Session expired. Please try again.")
+
         name = request.form.get("name", "").strip()
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
 
         error = None
         if not name:
@@ -81,6 +107,8 @@ def register():
             error = "Invalid email address."
         elif len(password) < 8:
             error = "Password must be at least 8 characters."
+        elif password != confirm:
+            error = "Passwords do not match."
 
         if error is None:
             db = get_db()
@@ -109,6 +137,9 @@ def register():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
+        if not validate_csrf():
+            return render_template("login.html", error="Session expired. Please try again.")
+
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
 
@@ -136,6 +167,7 @@ def login():
 
 
 @app.route("/logout")
+@login_required
 def logout():
     session.clear()
     flash("You've been signed out.", "success")
@@ -189,18 +221,26 @@ def dashboard():
     ).fetchall()
 
     loans_active = db.execute(
-        "SELECT type, emi_amount, total_emis, paid_emis FROM loans WHERE user_id = ? AND status = 'active'",
+        "SELECT type, emi_amount, emi_frequency, total_emis, paid_emis FROM loans WHERE user_id = ? AND status = 'active'",
         (session["user_id"],),
     ).fetchall()
     loan_outstanding = 0
-    loan_monthly_emi = 0
+    loan_monthly_pay = 0
+    loan_monthly_receive = 0
     for l in loans_active:
         remaining = l["total_emis"] - l["paid_emis"]
         loan_outstanding += remaining * l["emi_amount"]
-        loan_monthly_emi += l["emi_amount"]
+        monthly = l["emi_amount"] * (4.33 if l["emi_frequency"] == "weekly" else 1)
+        if l["type"] == "borrowed":
+            loan_monthly_pay += monthly
+        else:
+            loan_monthly_receive += monthly
 
+    avail_months = [r["m"] for r in avail_months]
+    if not avail_months:
+        avail_months = [f"{date.today().year}-{date.today().month:02d}"]
     db.close()
-    return render_template("dashboard.html", expenses=expenses, total=total, income=income, month=month, avail_months=[r["m"] for r in avail_months], budgets=budgets, loan_outstanding=loan_outstanding, loan_monthly_emi=loan_monthly_emi, loan_count=len(loans_active))
+    return render_template("dashboard.html", expenses=expenses, total=total, income=income, month=month, avail_months=avail_months, budgets=budgets, loan_outstanding=loan_outstanding, loan_monthly_pay=round(loan_monthly_pay), loan_monthly_receive=round(loan_monthly_receive), loan_count=len(loans_active))
 
 
 # ------------------------------------------------------------------ #
@@ -215,10 +255,18 @@ def budgets():
     month = request.args.get("month", f"{now.year}-{now.month:02d}")
 
     if request.method == "POST":
+        if not validate_csrf():
+            flash("Session expired. Please try again.", "error")
+            db.close()
+            return redirect(url_for("budgets", month=month))
+
         category = request.form.get("category", "").strip()
         amount = request.form.get("amount", "").strip()
+        allowed_cats = [c for c in CATEGORIES if c != "Salary"]
 
-        if category and amount and re.match(r"^\d+(\.\d{1,2})?$", amount):
+        if category not in allowed_cats:
+            flash("Invalid category.", "error")
+        elif category and amount and re.match(r"^\d+(\.\d{1,2})?$", amount) and float(amount) > 0:
             db.execute(
                 "INSERT INTO budgets (user_id, category, amount, month) VALUES (?, ?, ?, ?) "
                 "ON CONFLICT(user_id, category, month) DO UPDATE SET amount = ?",
@@ -227,7 +275,7 @@ def budgets():
             db.commit()
             flash(f"Budget set for {category}.", "success")
         else:
-            flash("Invalid budget entry.", "error")
+            flash("Invalid budget entry. Amount must be greater than 0.", "error")
 
         db.close()
         return redirect(url_for("budgets", month=month))
@@ -244,14 +292,20 @@ def budgets():
         "SELECT DISTINCT strftime('%Y-%m', date) as m FROM expenses WHERE user_id = ? ORDER BY m DESC",
         (session["user_id"],),
     ).fetchall()
+    avail_months = [r["m"] for r in avail_months]
+    if not avail_months:
+        avail_months = [f"{date.today().year}-{date.today().month:02d}"]
 
     db.close()
-    return render_template("budgets.html", budgets=budgets, month=month, avail_months=[r["m"] for r in avail_months], categories=[c for c in CATEGORIES if c != "Salary"])
+    return render_template("budgets.html", budgets=budgets, month=month, avail_months=avail_months, categories=[c for c in CATEGORIES if c != "Salary"])
 
 
 @app.route("/budgets/<int:id>/delete", methods=["POST"])
 @login_required
 def delete_budget(id):
+    if not validate_csrf():
+        flash("Session expired. Please try again.", "error")
+        return redirect(url_for("budgets", month=request.args.get("month", "")))
     db = get_db()
     db.execute("DELETE FROM budgets WHERE id = ? AND user_id = ?", (id, session["user_id"]))
     db.commit()
@@ -267,6 +321,9 @@ def delete_budget(id):
 def _next_emi_date(start_date, paid_emis, freq="monthly"):
     parts = start_date.split("-")
     year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+    if freq == "weekly":
+        d = datetime(year, month, day) + timedelta(weeks=paid_emis)
+        return d.strftime("%Y-%m-%d")
     total_months = year * 12 + month - 1 + paid_emis
     year = total_months // 12
     month = total_months % 12 + 1
@@ -303,6 +360,7 @@ def loans():
             "emi_amount": l["emi_amount"],
             "total_emis": l["total_emis"],
             "paid_emis": l["paid_emis"],
+            "emi_frequency": l["emi_frequency"],
             "remaining_emis": remaining,
             "outstanding": remaining * l["emi_amount"],
             "status": l["status"],
@@ -313,14 +371,22 @@ def loans():
 
     total_borrowed = sum(l["outstanding"] for l in enriched if l["type"] == "borrowed" and l["status"] == "active")
     total_lent = sum(l["outstanding"] for l in enriched if l["type"] == "lent" and l["status"] == "active")
-    monthly_emi_total = sum(l["emi_amount"] for l in enriched if l["status"] == "active")
+    monthly_emi_pay = round(sum(
+        l["emi_amount"] * (4.33 if l["emi_frequency"] == "weekly" else 1)
+        for l in enriched if l["status"] == "active" and l["type"] == "borrowed"
+    ))
+    monthly_emi_receive = round(sum(
+        l["emi_amount"] * (4.33 if l["emi_frequency"] == "weekly" else 1)
+        for l in enriched if l["status"] == "active" and l["type"] == "lent"
+    ))
 
     return render_template(
         "loans.html",
         loans=enriched,
         total_borrowed=total_borrowed,
         total_lent=total_lent,
-        monthly_emi_total=monthly_emi_total,
+        monthly_emi_pay=monthly_emi_pay,
+        monthly_emi_receive=monthly_emi_receive,
     )
 
 
@@ -328,6 +394,9 @@ def loans():
 @login_required
 def add_loan():
     if request.method == "POST":
+        if not validate_csrf():
+            return render_template("add_loan.html", error="Session expired. Please try again.")
+
         loan_type = request.form.get("type")
         name = request.form.get("name", "").strip()
         total_amount = request.form.get("total_amount", "").strip()
@@ -335,6 +404,7 @@ def add_loan():
         start_date = request.form.get("start_date", "").strip()
         emi_amount = request.form.get("emi_amount", "").strip()
         total_emis = request.form.get("total_emis", "").strip()
+        emi_frequency = request.form.get("emi_frequency", "monthly")
         notes = request.form.get("notes", "").strip()
 
         error = None
@@ -356,8 +426,8 @@ def add_loan():
 
         db = get_db()
         db.execute(
-            "INSERT INTO loans (user_id, type, name, total_amount, interest_rate, start_date, emi_amount, total_emis, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (session["user_id"], loan_type, name, float(total_amount), float(interest_rate), start_date, float(emi_amount), int(total_emis), notes),
+            "INSERT INTO loans (user_id, type, name, total_amount, interest_rate, start_date, emi_amount, emi_frequency, total_emis, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (session["user_id"], loan_type, name, float(total_amount), float(interest_rate), start_date, float(emi_amount), emi_frequency, int(total_emis), notes),
         )
         db.commit()
         db.close()
@@ -370,6 +440,9 @@ def add_loan():
 @app.route("/loans/<int:id>/pay-emi", methods=["POST"])
 @login_required
 def pay_emi(id):
+    if not validate_csrf():
+        flash("Session expired. Please try again.", "error")
+        return redirect(url_for("loans"))
     db = get_db()
     loan = db.execute(
         "SELECT * FROM loans WHERE id = ? AND user_id = ?", (id, session["user_id"])
@@ -425,11 +498,16 @@ def edit_loan(id):
         return redirect(url_for("loans"))
 
     if request.method == "POST":
+        if not validate_csrf():
+            db.close()
+            return render_template("add_loan.html", error="Session expired. Please try again.", loan=loan, edit=True)
+
         name = request.form.get("name", "").strip()
         total_amount = request.form.get("total_amount", "").strip()
         interest_rate = request.form.get("interest_rate", "0").strip()
         emi_amount = request.form.get("emi_amount", "").strip()
         total_emis = request.form.get("total_emis", "").strip()
+        emi_frequency = request.form.get("emi_frequency", "monthly")
         paid_emis = request.form.get("paid_emis", "0").strip()
         status = request.form.get("status", "active")
         notes = request.form.get("notes", "").strip()
@@ -451,8 +529,8 @@ def edit_loan(id):
             return render_template("add_loan.html", error=error, loan=loan, edit=True)
 
         db.execute(
-            "UPDATE loans SET name=?, total_amount=?, interest_rate=?, emi_amount=?, total_emis=?, paid_emis=?, status=?, notes=? WHERE id=? AND user_id=?",
-            (name, float(total_amount), float(interest_rate), float(emi_amount), int(total_emis), int(paid_emis), status, notes, id, session["user_id"]),
+            "UPDATE loans SET name=?, total_amount=?, interest_rate=?, emi_amount=?, emi_frequency=?, total_emis=?, paid_emis=?, status=?, notes=? WHERE id=? AND user_id=?",
+            (name, float(total_amount), float(interest_rate), float(emi_amount), emi_frequency, int(total_emis), int(paid_emis), status, notes, id, session["user_id"]),
         )
         db.commit()
         db.close()
@@ -466,6 +544,9 @@ def edit_loan(id):
 @app.route("/loans/<int:id>/delete", methods=["POST"])
 @login_required
 def delete_loan(id):
+    if not validate_csrf():
+        flash("Session expired. Please try again.", "error")
+        return redirect(url_for("loans"))
     db = get_db()
     db.execute("DELETE FROM loans WHERE id = ? AND user_id = ?", (id, session["user_id"]))
     db.commit()
@@ -558,12 +639,22 @@ def ledger():
         params,
     ).fetchall()
 
-    rows = []
+    balance = db.execute(
+        f"SELECT COALESCE(SUM(CASE WHEN type='income' THEN amount ELSE -amount END), 0) FROM expenses WHERE {where}",
+        params,
+    ).fetchone()[0]
+
+    # Compute running balance across ALL matching records (not just current page)
+    all_expenses = db.execute(
+        f"SELECT * FROM expenses WHERE {where} ORDER BY date ASC, id ASC",
+        params,
+    ).fetchall()
+    all_rows = []
     running = 0
-    for e in expenses:
-        amount = -e["amount"] if e["type"] == "expense" else e["amount"]
-        running += amount
-        rows.append({
+    for e in all_expenses:
+        amt = -e["amount"] if e["type"] == "expense" else e["amount"]
+        running += amt
+        all_rows.append({
             "id": e["id"],
             "date": e["date"],
             "category": e["category"],
@@ -573,6 +664,15 @@ def ledger():
             "running": running,
         })
 
+    # Slice to current page
+    rows = all_rows[offset:offset + per_page]
+
+    # True overall balance (unfiltered, unpaginated)
+    true_balance = db.execute(
+        "SELECT COALESCE(SUM(CASE WHEN type='income' THEN amount ELSE -amount END), 0) FROM expenses WHERE user_id = ?",
+        (session["user_id"],),
+    ).fetchone()[0]
+
     db.close()
     return render_template(
         "ledger.html",
@@ -580,7 +680,8 @@ def ledger():
         categories=categories,
         total_income=total_income,
         income=total_income,
-        balance=running,
+        balance=balance,
+        true_balance=true_balance,
         q=q,
         sort=sort,
         order=order,
@@ -588,6 +689,7 @@ def ledger():
         date_to=date_to,
         page=page,
         total_pages=total_pages,
+        show_running=sort == "date",
     )
 
 
@@ -601,6 +703,10 @@ def profile():
     db = get_db()
 
     if request.method == "POST":
+        if not validate_csrf():
+            flash("Session expired. Please try again.", "error")
+            return redirect(url_for("profile"))
+
         action = request.form.get("action")
 
         if action == "update_profile":
@@ -686,6 +792,14 @@ def profile():
                 return redirect(url_for("profile"))
 
             filename = secure_filename(f"user_{session['user_id']}_{file.filename}")
+            # Remove all existing photos for this user (cleanup orphans)
+            prefix = f"user_{session['user_id']}_"
+            for fname in os.listdir(UPLOAD_FOLDER):
+                if fname.startswith(prefix):
+                    try:
+                        os.remove(os.path.join(UPLOAD_FOLDER, fname))
+                    except OSError:
+                        pass
             file.save(os.path.join(UPLOAD_FOLDER, filename))
             db.execute("UPDATE users SET photo = ? WHERE id = ?", (filename, session["user_id"]))
             db.commit()
@@ -737,14 +851,22 @@ def add_expense():
         exp_type = request.form.get("type", "expense")
 
         error = None
+        if not validate_csrf():
+            return render_template("add_expense.html", error="Session expired. Please try again.", categories=CATEGORIES, today=date.today().isoformat())
         if not amount:
             error = "Amount is required."
         elif not re.match(r"^\d+(\.\d{1,2})?$", amount):
             error = "Invalid amount."
+        elif float(amount) <= 0:
+            error = "Amount must be greater than 0."
         elif not category:
             error = "Category is required."
         elif not date_val:
             error = "Date is required."
+        elif category == "Salary" and exp_type != "income":
+            error = "Salary can only be set as income."
+        elif category != "Salary" and exp_type == "income":
+            error = f"'{category}' cannot be set as income. Use 'Salary' category for income."
 
         if error is None:
             db = get_db()
@@ -783,14 +905,23 @@ def edit_expense(id):
         exp_type = request.form.get("type", "expense")
 
         error = None
+        if not validate_csrf():
+            db.close()
+            return render_template("edit_expense.html", expense=expense, error="Session expired. Please try again.", categories=CATEGORIES)
         if not amount:
             error = "Amount is required."
         elif not re.match(r"^\d+(\.\d{1,2})?$", amount):
             error = "Invalid amount."
+        elif float(amount) <= 0:
+            error = "Amount must be greater than 0."
         elif not category:
             error = "Category is required."
         elif not date_val:
             error = "Date is required."
+        elif category == "Salary" and exp_type != "income":
+            error = "Salary can only be set as income."
+        elif category != "Salary" and exp_type == "income":
+            error = f"'{category}' cannot be set as income. Use 'Salary' category for income."
 
         if error is None:
             db.execute(
@@ -812,6 +943,9 @@ def edit_expense(id):
 @app.route("/expenses/<int:id>/delete", methods=["POST"])
 @login_required
 def delete_expense(id):
+    if not validate_csrf():
+        flash("Session expired. Please try again.", "error")
+        return redirect(url_for("ledger"))
     db = get_db()
     expense = db.execute(
         "SELECT id FROM expenses WHERE id = ? AND user_id = ?", (id, session["user_id"])
@@ -836,10 +970,29 @@ def delete_expense(id):
 @app.route("/export")
 @login_required
 def export_csv():
+    q = request.args.get("q", "").strip()
+    date_from = request.args.get("from", "")
+    date_to = request.args.get("to", "")
+
+    conditions = ["user_id = ?"]
+    params = [session["user_id"]]
+
+    if q:
+        conditions.append("description LIKE ?")
+        params.append(f"%{q}%")
+    if date_from:
+        conditions.append("date >= ?")
+        params.append(date_from)
+    if date_to:
+        conditions.append("date <= ?")
+        params.append(date_to)
+
+    where = " AND ".join(conditions)
+
     db = get_db()
     expenses = db.execute(
-        "SELECT date, type, category, amount, description FROM expenses WHERE user_id = ? ORDER BY date ASC",
-        (session["user_id"],),
+        f"SELECT date, type, category, amount, description FROM expenses WHERE {where} ORDER BY date ASC",
+        params,
     ).fetchall()
     db.close()
 

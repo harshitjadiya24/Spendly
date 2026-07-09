@@ -47,8 +47,8 @@
       <a href="{{ url_for('budgets', month=month) }}" class="btn-ghost-sm">Manage</a>
     </div>
     {% for b in budgets %}
-    {% set pct = (b.spent / b.amount * 100)|round %}
-    {% set over = b.spent > b.amount %}
+    {% set pct = 0 if b.amount == 0 else (b.spent / b.amount * 100)|round %}
+    {% set over = b.amount > 0 and b.spent > b.amount %}
     <div class="budget-row">
       <div class="budget-row-header">
         <span class="budget-cat">{{ b.category }}</span>
@@ -79,12 +79,16 @@
     </div>
     <div class="dashboard-metrics">
       <div class="metric-sm">
-        <span class="metric-sm-label">Outstanding</span>
+        <span class="metric-sm-label">Remaining payments</span>
         <span class="metric-sm-value spent" style="color:var(--danger);">₹{{ "{:,.0f}".format(loan_outstanding) }}</span>
       </div>
       <div class="metric-sm">
-        <span class="metric-sm-label">Monthly EMIs</span>
-        <span class="metric-sm-value spent">₹{{ "{:,.0f}".format(loan_monthly_emi) }}</span>
+        <span class="metric-sm-label">Monthly to pay</span>
+        <span class="metric-sm-value spent" style="color:var(--danger);">₹{{ "{:,.0f}".format(loan_monthly_pay) }}</span>
+      </div>
+      <div class="metric-sm">
+        <span class="metric-sm-label">Monthly to receive</span>
+        <span class="metric-sm-value income">₹{{ "{:,.0f}".format(loan_monthly_receive) }}</span>
       </div>
       <div class="metric-sm">
         <span class="metric-sm-label">Active loans</span>

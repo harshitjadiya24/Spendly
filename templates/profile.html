@@ -23,7 +23,8 @@
 
   <form method="POST" action="{{ url_for('profile') }}" enctype="multipart/form-data" id="photoForm">
     <input type="hidden" name="action" value="upload_photo">
-    <input type="file" id="photoInput" name="photo" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="file" id="photoInput" name="photo" accept="image/png,image/jpeg,image/gif,image.webp" style="display:none">
   </form>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -62,6 +63,7 @@
       {% endif %}
       <form method="POST" action="{{ url_for('profile') }}">
         <input type="hidden" name="action" value="update_profile">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-group">
           <label for="name">Full name</label>
           <input type="text" id="name" name="name" class="form-input"
@@ -83,6 +85,7 @@
       {% endif %}
       <form method="POST" action="{{ url_for('profile') }}">
         <input type="hidden" name="action" value="change_password">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-group">
           <label for="current_password">Current password</label>
           <input type="password" id="current_password" name="current_password"

@@ -23,6 +23,7 @@
             {% endif %}
 
             <form method="POST" action="/register">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <div class="form-group">
                     <label for="name">Full name</label>
                     <input type="text" id="name" name="name"
@@ -39,6 +40,12 @@
                     <label for="password">Password</label>
                     <input type="password" id="password" name="password"
                            class="form-input" placeholder="Min. 8 characters"
+                           required>
+                </div>
+                <div class="form-group">
+                    <label for="confirm_password">Confirm password</label>
+                    <input type="password" id="confirm_password" name="confirm_password"
+                           class="form-input" placeholder="Re-enter password"
                            required>
                 </div>
                 <button type="submit" class="btn-submit">Create account</button>

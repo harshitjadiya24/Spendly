@@ -17,6 +17,7 @@
       {% endif %}
 
       <form method="POST" action="{{ url_for('add_expense') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-group">
           <label for="type">Type</label>
           <select id="type" name="type" class="form-input" required>

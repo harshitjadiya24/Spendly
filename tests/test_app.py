@@ -7,38 +7,32 @@ class TestAuth:
         assert r.status_code == 200
         assert b"Create your account" in r.data
 
+    def _register(self, client, **kw):
+        data = {"name": "A", "email": "a@test.com", "password": "password123",
+                "confirm_password": "password123"}
+        data.update(kw)
+        return client.post("/register", data=data, follow_redirects=True)
+
     def test_register_success(self, client):
-        r = client.post("/register", data={
-            "name": "Alice", "email": "alice@test.com", "password": "password123",
-        }, follow_redirects=True)
+        r = self._register(client, name="Alice", email="alice@test.com")
         assert r.status_code == 200
         assert b"Account created" in r.data
 
     def test_register_duplicate_email(self, client):
-        client.post("/register", data={
-            "name": "Alice", "email": "dup@test.com", "password": "password123",
-        })
-        r = client.post("/register", data={
-            "name": "Bob", "email": "dup@test.com", "password": "password123",
-        }, follow_redirects=True)
+        self._register(client, email="dup@test.com")
+        r = self._register(client, email="dup@test.com", name="Bob")
         assert b"already exists" in r.data
 
     def test_register_short_password(self, client):
-        r = client.post("/register", data={
-            "name": "A", "email": "a@test.com", "password": "123",
-        }, follow_redirects=True)
+        r = self._register(client, password="123", confirm_password="123")
         assert b"at least 8 characters" in r.data
 
     def test_register_invalid_email(self, client):
-        r = client.post("/register", data={
-            "name": "A", "email": "bademail", "password": "password123",
-        }, follow_redirects=True)
+        r = self._register(client, email="bademail")
         assert b"Invalid email" in r.data
 
     def test_login_success(self, client):
-        client.post("/register", data={
-            "name": "Alice", "email": "alice@test.com", "password": "password123",
-        })
+        self._register(client, name="Alice", email="alice@test.com")
         r = client.post("/login", data={
             "email": "alice@test.com", "password": "password123",
         }, follow_redirects=True)
@@ -51,9 +45,7 @@ class TestAuth:
         assert b"Invalid email or password" in r.data
 
     def test_logout(self, client):
-        client.post("/register", data={
-            "name": "A", "email": "a@test.com", "password": "password123",
-        })
+        self._register(client)
         client.post("/login", data={
             "email": "a@test.com", "password": "password123",
         })
@@ -65,6 +57,7 @@ class TestAuthProtection:
     def _login(self, client):
         client.post("/register", data={
             "name": "U", "email": "u@test.com", "password": "password123",
+            "confirm_password": "password123",
         })
         client.post("/login", data={
             "email": "u@test.com", "password": "password123",
@@ -95,6 +88,7 @@ class TestExpenseCRUD:
     def _login(self, client):
         client.post("/register", data={
             "name": "U", "email": "u@test.com", "password": "password123",
+            "confirm_password": "password123",
         })
         client.post("/login", data={
             "email": "u@test.com", "password": "password123",
@@ -159,6 +153,7 @@ class TestLedger:
     def _setup(self, client):
         client.post("/register", data={
             "name": "U", "email": "u@test.com", "password": "password123",
+            "confirm_password": "password123",
         })
         client.post("/login", data={
             "email": "u@test.com", "password": "password123",
@@ -176,7 +171,7 @@ class TestLedger:
         self._setup(client)
         r = client.get("/ledger")
         assert r.status_code == 200
-        assert b"Current balance" in r.data
+        assert b"Filtered balance" in r.data
         assert b"Transaction ledger" in r.data
 
     def test_ledger_search(self, client):
@@ -199,6 +194,7 @@ class TestProfile:
     def _login(self, client):
         client.post("/register", data={
             "name": "Alice", "email": "alice@test.com", "password": "password123",
+            "confirm_password": "password123",
         })
         client.post("/login", data={
             "email": "alice@test.com", "password": "password123",
@@ -231,6 +227,7 @@ class TestExport:
     def test_csv_export(self, client):
         client.post("/register", data={
             "name": "U", "email": "u@test.com", "password": "password123",
+            "confirm_password": "password123",
         })
         client.post("/login", data={
             "email": "u@test.com", "password": "password123",

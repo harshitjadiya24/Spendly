@@ -29,6 +29,7 @@
     <h2 style="font-family:var(--font-display);font-size:1.1rem;color:var(--ink);margin-bottom:1.25rem;">Set monthly budgets</h2>
 
     <form method="POST" action="{{ url_for('budgets', month=month) }}" class="budget-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="budget-form-row">
         <select name="category" class="form-input" style="width:auto;" required>
           <option value="">Category</option>
@@ -44,8 +45,8 @@
     {% if budgets %}
     <div style="margin-top:2rem;">
       {% for b in budgets %}
-      {% set pct = (b.spent / b.amount * 100)|round %}
-      {% set over = b.spent > b.amount %}
+      {% set pct = 0 if b.amount == 0 else (b.spent / b.amount * 100)|round %}
+      {% set over = b.amount > 0 and b.spent > b.amount %}
       <div class="budget-row">
         <div class="budget-row-header">
           <span class="budget-cat">{{ b.category }}</span>
@@ -63,6 +64,7 @@
                style="width:{{ [pct, 100]|min }}%"></div>
         </div>
         <form method="POST" action="{{ url_for('delete_budget', id=b.id) }}" style="margin-top:0.25rem;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="btn-ghost-sm" style="color:var(--danger);">Remove</button>
         </form>
       </div>

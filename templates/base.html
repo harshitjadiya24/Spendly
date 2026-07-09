@@ -23,7 +23,8 @@
           <span class="brand-icon">◈</span>
           <span class="brand-name">Spendly</span>
         </a>
-        <div class="nav-links">
+        <button class="nav-toggle" id="navToggle" title="Menu">☰</button>
+        <div class="nav-links" id="navLinks">
           {% if session.user_id %}
           <span class="nav-greeting">Hi, {{ session.user_name }}</span>
           <a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}class="nav-active"{% endif %}>Dashboard</a>
@@ -47,11 +48,16 @@
 
     <footer class="footer">
       <div class="footer-inner">
-        <span class="brand-icon">◈</span>
-        <span class="footer-name">Spendly</span>
+        <div class="footer-brand">
+          <span class="brand-icon">◈</span>
+          <span class="footer-name">Spendly</span>
+        </div>
         <p class="footer-copy">Track every rupee. Own your finances.</p>
-        <a href="{{ url_for('terms') }}">Terms and conditions</a>
-        <a href="{{ url_for('privacy') }}">Privacy policy</a>
+        <div class="footer-links">
+          <a href="{{ url_for('terms') }}">Terms</a>
+          <span class="footer-sep">·</span>
+          <a href="{{ url_for('privacy') }}">Privacy</a>
+        </div>
       </div>
     </footer>
 

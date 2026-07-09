@@ -1,6 +1,7 @@
 import re
 import csv
 import os
+import time
 from io import StringIO
 from datetime import datetime, date
 from flask import Flask, render_template, request, redirect, url_for, flash, session, Response
@@ -380,7 +381,7 @@ def profile():
                 ).fetchone()
                 stats = _get_user_stats(db, session["user_id"])
                 db.close()
-                return render_template("profile.html", user=user, stats=stats, error=error)
+                return render_template("profile.html", user=user, stats=stats, error=error, cache_buster=int(time.time()))
 
             db.execute(
                 "UPDATE users SET name = ?, email = ? WHERE id = ?",
@@ -414,7 +415,7 @@ def profile():
             if error:
                 stats = _get_user_stats(db, session["user_id"])
                 db.close()
-                return render_template("profile.html", user=user, stats=stats, pw_error=error)
+                return render_template("profile.html", user=user, stats=stats, pw_error=error, cache_buster=int(time.time()))
 
             db.execute(
                 "UPDATE users SET password_hash = ? WHERE id = ?",
@@ -452,7 +453,7 @@ def profile():
     ).fetchone()
     stats = _get_user_stats(db, session["user_id"])
     db.close()
-    return render_template("profile.html", user=user, stats=stats)
+    return render_template("profile.html", user=user, stats=stats, cache_buster=int(time.time()))
 
 
 def _get_user_stats(db, user_id):

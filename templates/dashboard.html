@@ -34,7 +34,7 @@
   </div>
 
   {# --- Trends chart --- #}
-  <div class="dashboard-card" style="margin-bottom:1.5rem;">
+  <div class="chart-card">
     <h2 class="section-subtitle">Spending trends (12 months)</h2>
     <canvas id="trendsChart" width="800" height="280" style="max-width:100%;"></canvas>
   </div>
@@ -128,8 +128,8 @@ fetch('/api/trends')
           {
             label: 'Spent',
             data: data.map(d => d.spent),
-            borderColor: '#c0392b',
-            backgroundColor: 'rgba(192,57,43,0.08)',
+            borderColor: '#dc2626',
+            backgroundColor: 'rgba(220,38,38,0.08)',
             fill: true,
             tension: 0.3,
             pointRadius: 4,
@@ -137,8 +137,8 @@ fetch('/api/trends')
           {
             label: 'Income',
             data: data.map(d => d.earned),
-            borderColor: '#1a472a',
-            backgroundColor: 'rgba(26,71,42,0.08)',
+            borderColor: '#16a34a',
+            backgroundColor: 'rgba(22,163,74,0.08)',
             fill: true,
             tension: 0.3,
             pointRadius: 4,

@@ -8,7 +8,7 @@
   <div class="profile-header">
     <div class="profile-avatar-wrap" id="avatarWrap" title="Change profile photo">
       {% if user.photo %}
-      <img src="{{ url_for('static', filename='uploads/' + user.photo) }}" alt="Photo" class="profile-img">
+      <img src="{{ url_for('static', filename='uploads/' + user.photo) }}?v={{ cache_buster }}" alt="Photo" class="profile-img">
       {% else %}
       <div class="profile-avatar">{{ user.name[:1] }}</div>
       {% endif %}
@@ -104,6 +104,8 @@
   </div>
 </section>
 
+{% endblock %}
+
 {% block scripts %}
 <script>
 document.getElementById('avatarWrap').addEventListener('click', () => {
@@ -115,5 +117,4 @@ document.getElementById('photoInput').addEventListener('change', () => {
   }
 });
 </script>
-{% endblock %}
 {% endblock %}

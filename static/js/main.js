@@ -41,3 +41,19 @@ if (toggle) {
         localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
     });
 }
+
+// Hamburger nav toggle
+const navToggle = document.getElementById('navToggle');
+const navLinks = document.getElementById('navLinks');
+
+if (navToggle && navLinks) {
+    navToggle.addEventListener('click', () => {
+        navLinks.classList.toggle('open');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!navToggle.contains(e.target) && !navLinks.contains(e.target)) {
+            navLinks.classList.remove('open');
+        }
+    });
+}

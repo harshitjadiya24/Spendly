@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}{% if edit %}Edit{% else %}Add{% endif %} investment — Spendly{% endblock %}
+
+{% block content %}
+
+<section class="auth-section">
+  <div class="auth-container">
+    <div class="auth-header">
+      <h1 class="auth-title">{% if edit %}Edit investment{% else %}Add an investment{% endif %}</h1>
+      <p class="auth-subtitle">{% if edit %}Update investment details{% else %}Track your stocks, funds, FD, and more{% endif %}</p>
+    </div>
+
+    <div class="auth-card">
+      {% if error %}
+      <div class="auth-error">{{ error }}</div>
+      {% endif %}
+
+      <form method="POST" action="{% if edit %}{{ url_for('edit_investment', id=investment.id) }}{% else %}{{ url_for('add_investment') }}{% endif %}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div class="form-group">
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name" class="form-input"
+                 placeholder="e.g. Nifty 50 Index Fund, Apple stock"
+                 value="{{ investment.name if edit else '' }}" required autofocus>
+        </div>
+
+        <div class="form-group">
+          <label for="category">Category</label>
+          <select id="category" name="category" class="form-input" required>
+            <option value="">Select category</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}" {% if edit and investment.category == cat %}selected{% endif %}>{{ cat|replace('_', ' ')|title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="investment_type">Investment type</label>
+          <select id="investment_type" name="investment_type" class="form-input" required>
+            <option value="lump_sum" {% if edit and investment.investment_type == 'lump_sum' %}selected{% endif %}>Lump sum</option>
+            <option value="sip" {% if edit and investment.investment_type == 'sip' %}selected{% endif %}>SIP (recurring)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="invested_amount">Total invested (₹)</label>
+          <input type="text" id="invested_amount" name="invested_amount" class="form-input"
+                 placeholder="500000"
+                 value="{{ '%.2f'|format(investment.invested_amount) if edit else '' }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="current_value">Current value (₹)</label>
+          <input type="text" id="current_value" name="current_value" class="form-input"
+                 placeholder="578000"
+                 value="{{ '%.2f'|format(investment.current_value) if edit else '' }}" required>
+        </div>
+
+        <div class="form-group sip-field">
+          <label for="sip_amount">SIP amount (₹)</label>
+          <input type="text" id="sip_amount" name="sip_amount" class="form-input"
+                 placeholder="5000"
+                 value="{{ '%.2f'|format(investment.sip_amount) if edit else '' }}">
+        </div>
+
+        <div class="form-group sip-field">
+          <label for="sip_frequency">SIP frequency</label>
+          <select id="sip_frequency" name="sip_frequency" class="form-input">
+            <option value="monthly" {% if edit and investment.sip_frequency == 'monthly' %}selected{% endif %}>Monthly</option>
+            <option value="quarterly" {% if edit and investment.sip_frequency == 'quarterly' %}selected{% endif %}>Quarterly</option>
+            <option value="yearly" {% if edit and investment.sip_frequency == 'yearly' %}selected{% endif %}>Yearly</option>
+          </select>
+        </div>
+
+        <div class="form-group sip-field">
+          <label for="sip_start_date">SIP start date</label>
+          <input type="date" id="sip_start_date" name="sip_start_date" class="form-input"
+                 value="{{ investment.sip_start_date if edit else '' }}">
+        </div>
+
+        <div class="form-group stock-field">
+          <label for="units">Units / Quantity</label>
+          <input type="text" id="units" name="units" class="form-input"
+                 placeholder="100"
+                 value="{{ '%.4f'|format(investment.units) if edit else '' }}">
+        </div>
+
+        <div class="form-group stock-field">
+          <label for="purchase_price">Purchase price per unit (₹)</label>
+          <input type="text" id="purchase_price" name="purchase_price" class="form-input"
+                 placeholder="150.50"
+                 value="{{ '%.2f'|format(investment.purchase_price) if edit else '' }}">
+        </div>
+
+        <div class="form-group fd-field">
+          <label for="maturity_date">Maturity date</label>
+          <input type="date" id="maturity_date" name="maturity_date" class="form-input"
+                 value="{{ investment.maturity_date if edit else '' }}">
+        </div>
+
+        <div class="form-group fd-field">
+          <label for="interest_rate">Interest rate (%)</label>
+          <input type="text" id="interest_rate" name="interest_rate" class="form-input"
+                 placeholder="7.5"
+                 value="{{ '%.2f'|format(investment.interest_rate) if edit else '0' }}">
+        </div>
+
+        <div class="form-group">
+          <label for="start_date">Start date</label>
+          <input type="date" id="start_date" name="start_date" class="form-input"
+                 value="{{ investment.start_date if edit else '' }}" required>
+        </div>
+
+        {% if edit %}
+        <div class="form-group">
+          <label for="status">Status</label>
+          <select id="status" name="status" class="form-input">
+            <option value="active" {% if investment.status == 'active' %}selected{% endif %}>Active</option>
+            <option value="closed" {% if investment.status == 'closed' %}selected{% endif %}>Closed</option>
+          </select>
+        </div>
+        {% endif %}
+
+        <div class="form-group">
+          <label for="notes">Notes (optional)</label>
+          <textarea id="notes" name="notes" class="form-input" rows="2" placeholder="Bank name, broker, or any details">{{ investment.notes if edit else '' }}</textarea>
+        </div>
+
+        <button type="submit" class="btn-submit">{% if edit %}Update investment{% else %}Add investment{% endif %}</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+var typeEl = document.getElementById('investment_type');
+var catEl = document.getElementById('category');
+function toggleFields() {
+  var isSip = typeEl.value === 'sip';
+  document.querySelectorAll('.sip-field').forEach(function(el) { el.style.display = isSip ? '' : 'none'; });
+  var isStock = catEl.value === 'stocks' || catEl.value === 'mutual_funds';
+  document.querySelectorAll('.stock-field').forEach(function(el) { el.style.display = isStock ? '' : 'none'; });
+  var isFd = catEl.value === 'fd';
+  document.querySelectorAll('.fd-field').forEach(function(el) { el.style.display = isFd ? '' : 'none'; });
+}
+typeEl.addEventListener('change', toggleFields);
+catEl.addEventListener('change', toggleFields);
+toggleFields();
+</script>
+{% endblock %}

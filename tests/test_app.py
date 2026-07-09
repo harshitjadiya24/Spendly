@@ -240,3 +240,56 @@ class TestExport:
         assert r.status_code == 200
         assert r.mimetype == "text/csv"
         assert b"Amount" in r.data
+
+
+class TestInvestments:
+    def _login(self, client):
+        client.post("/register", data={
+            "name": "U", "email": "u@test.com", "password": "password123",
+            "confirm_password": "password123",
+        })
+        client.post("/login", data={
+            "email": "u@test.com", "password": "password123",
+        })
+
+    def _add(self, client, name="Test Fund", category="mutual_funds", invested="50000",
+             current="55000", start_date="2026-01-01", inv_type="lump_sum"):
+        return client.post("/investments/add", data={
+            "name": name, "category": category, "invested_amount": invested,
+            "current_value": current, "start_date": start_date, "investment_type": inv_type,
+            "units": "0", "purchase_price": "0", "sip_amount": "0",
+            "sip_frequency": "monthly", "interest_rate": "0",
+        }, follow_redirects=True)
+
+    def test_investments_page_redirects_when_logged_out(self, client):
+        r = client.get("/investments", follow_redirects=True)
+        assert b"Please sign in" in r.data
+
+    def test_add_investment_page_loads(self, client):
+        self._login(client)
+        r = client.get("/investments/add")
+        assert r.status_code == 200
+        assert b"Add an investment" in r.data
+
+    def test_add_investment_success(self, client):
+        self._login(client)
+        r = self._add(client)
+        assert b"added successfully" in r.data
+
+    def test_add_investment_sip(self, client):
+        self._login(client)
+        r = self._add(client, name="SIP Fund", inv_type="sip")
+        assert b"added successfully" in r.data
+
+    def test_investments_page_shows_data(self, client):
+        self._login(client)
+        self._add(client)
+        r = client.get("/investments")
+        assert b"Test Fund" in r.data
+        assert b"Total invested" in r.data
+
+    def test_delete_investment(self, client):
+        self._login(client)
+        self._add(client)
+        r = client.post("/investments/1/delete", follow_redirects=True)
+        assert b"deleted" in r.data

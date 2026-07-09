@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Investments — Spendly{% endblock %}
+
+{% block head %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+
+<section class="dashboard">
+  <div class="dashboard-header">
+    <h1 class="dashboard-title">Investments</h1>
+    <a href="{{ url_for('add_investment') }}" class="btn-primary">+ Add investment</a>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="flash-bar flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+  {% endwith %}
+
+  <div class="dashboard-metrics" style="margin-bottom:2rem;">
+    <div class="metric-sm">
+      <span class="metric-sm-label">Total invested</span>
+      <span class="metric-sm-value spent">₹{{ "{:,.0f}".format(total_invested) }}</span>
+    </div>
+    <div class="metric-sm">
+      <span class="metric-sm-label">Current value</span>
+      <span class="metric-sm-value income">₹{{ "{:,.0f}".format(total_current) }}</span>
+    </div>
+    <div class="metric-sm">
+      <span class="metric-sm-label">P&amp;L</span>
+      <span class="metric-sm-value" style="color:{{ 'var(--accent)' if total_pnl >= 0 else 'var(--danger)' }};">₹{{ "{:+,.0f}".format(total_pnl) }}</span>
+    </div>
+    <div class="metric-sm">
+      <span class="metric-sm-label">Returns</span>
+      <span class="metric-sm-value" style="color:{{ 'var(--accent)' if total_returns_pct >= 0 else 'var(--danger)' }};">{{ "%+.2f"|format(total_returns_pct) }}%</span>
+    </div>
+  </div>
+
+  {% if investments %}
+  <div class="dashboard-card" style="padding:0;overflow:hidden;">
+    <div style="overflow-x:auto;">
+      <table class="ledger-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Invested</th>
+            <th>Current</th>
+            <th>P&amp;L</th>
+            <th>Returns</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in investments %}
+          <tr>
+            <td style="font-weight:500;">{{ inv.name }}</td>
+            <td><span class="ledger-badge" style="--cat-color:var(--ink-muted);">{{ inv.category|replace('_', ' ')|title }}</span></td>
+            <td class="col-amt">₹{{ "{:,.0f}".format(inv.invested_amount) }}</td>
+            <td class="col-amt">₹{{ "{:,.0f}".format(inv.current_value) }}</td>
+            <td class="col-amt" style="color:{{ 'var(--accent)' if inv.pnl >= 0 else 'var(--danger)' }};">₹{{ "{:+,.0f}".format(inv.pnl) }}</td>
+            <td class="col-amt" style="color:{{ 'var(--accent)' if inv.returns_pct >= 0 else 'var(--danger)' }};">{{ "%+.2f"|format(inv.returns_pct) }}%</td>
+            <td>
+              {% if inv.status == 'active' %}
+              <span class="ledger-badge" style="--cat-color:var(--accent);">Active</span>
+              {% else %}
+              <span class="ledger-badge" style="--cat-color:var(--ink-faint);">Closed</span>
+              {% endif %}
+            </td>
+            <td>
+              <div style="display:flex;gap:0.3rem;flex-wrap:wrap;">
+                {% if inv.status == 'active' %}
+                <form method="POST" action="{{ url_for('update_investment_value', id=inv.id) }}" style="display:inline-flex;gap:0.25rem;align-items:center;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="text" name="current_value" class="form-input" style="width:70px;font-size:0.75rem;padding:0.2rem 0.4rem;" placeholder="Value" required>
+                  <button type="submit" class="btn-ghost-sm" style="font-size:0.7rem;">Update</button>
+                </form>
+                {% endif %}
+                <a href="{{ url_for('edit_investment', id=inv.id) }}" class="btn-ghost-sm">Edit</a>
+                <form method="POST" action="{{ url_for('delete_investment', id=inv.id) }}" style="display:inline;"
+                      onsubmit="var f=this;showConfirm('Delete this investment?',function(){f.submit();});return false;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn-ghost-sm" style="color:var(--danger);">&times;</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="dashboard-card">
+    <div class="dashboard-empty">
+      <p>No investments yet.</p>
+      <p><a href="{{ url_for('add_investment') }}">Add your first investment</a></p>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}

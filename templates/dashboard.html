@@ -98,6 +98,34 @@
   </div>
   {% endif %}
 
+  {# --- Investments summary --- #}
+  {% if inv_count > 0 %}
+  <div class="chart-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+      <h2 class="section-subtitle" style="margin:0;">Investments</h2>
+      <a href="{{ url_for('investments') }}" class="btn-ghost-sm">Manage</a>
+    </div>
+    <div class="dashboard-metrics">
+      <div class="metric-sm">
+        <span class="metric-sm-label">Invested</span>
+        <span class="metric-sm-value spent">₹{{ "{:,.0f}".format(inv_total_invested) }}</span>
+      </div>
+      <div class="metric-sm">
+        <span class="metric-sm-label">Current</span>
+        <span class="metric-sm-value income">₹{{ "{:,.0f}".format(inv_total_current) }}</span>
+      </div>
+      <div class="metric-sm">
+        <span class="metric-sm-label">P&amp;L</span>
+        <span class="metric-sm-value" style="color:{{ 'var(--accent)' if inv_pnl >= 0 else 'var(--danger)' }};">₹{{ "{:+,.0f}".format(inv_pnl) }}</span>
+      </div>
+      <div class="metric-sm">
+        <span class="metric-sm-label">Returns</span>
+        <span class="metric-sm-value" style="color:{{ 'var(--accent)' if inv_returns_pct >= 0 else 'var(--danger)' }};">{{ "%+.2f"|format(inv_returns_pct) }}%</span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {# --- Transactions --- #}
   <div class="dashboard-card">
     <h2 class="section-subtitle">Transactions — {{ month }}</h2>

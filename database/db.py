@@ -84,6 +84,30 @@ def init_db():
         cursor.execute("ALTER TABLE users ADD COLUMN photo TEXT DEFAULT NULL")
         conn.commit()
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS investments (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id         INTEGER NOT NULL,
+            name            TEXT NOT NULL,
+            category        TEXT NOT NULL,
+            investment_type TEXT NOT NULL DEFAULT 'lump_sum',
+            invested_amount REAL NOT NULL,
+            current_value   REAL NOT NULL,
+            units           REAL DEFAULT 0,
+            purchase_price  REAL DEFAULT 0,
+            sip_amount      REAL DEFAULT 0,
+            sip_frequency   TEXT DEFAULT 'monthly',
+            sip_start_date  TEXT,
+            start_date      TEXT NOT NULL,
+            maturity_date   TEXT,
+            interest_rate   REAL DEFAULT 0,
+            status          TEXT DEFAULT 'active',
+            notes           TEXT DEFAULT '',
+            created_at      TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+    """)
+    conn.commit()
     conn.close()
 
 
@@ -93,6 +117,7 @@ def seed_db():
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] > 0:
         _seed_loans(conn)
+        _seed_investments(conn)
         conn.close()
         return
 
@@ -125,6 +150,7 @@ def seed_db():
     )
 
     _seed_loans(conn, user_id)
+    _seed_investments(conn, user_id)
     conn.commit()
     conn.close()
 
@@ -147,5 +173,27 @@ def _seed_loans(conn, user_id=None):
     cursor.executemany(
         "INSERT INTO loans (user_id, type, name, total_amount, interest_rate, start_date, emi_amount, emi_frequency, total_emis, paid_emis, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         loans,
+    )
+    conn.commit()
+
+
+def _seed_investments(conn, user_id=None):
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM investments")
+    if cursor.fetchone()[0] > 0:
+        return
+    year = datetime.now().year
+    if user_id is None:
+        user = cursor.execute("SELECT id FROM users WHERE email = ?", ("demo@spendly.com",)).fetchone()
+        if not user:
+            return
+        user_id = user["id"]
+    investments = [
+        (user_id, "Index Fund", "mutual_funds", "sip", 120000, 138000, 0, 0, 5000, "monthly", f"{year-2}-06-01", f"{year-2}-06-01", None, 0, "active", "Nifty 50 index fund"),
+        (user_id, "Fixed Deposit", "fd", "lump_sum", 500000, 578000, 0, 0, 0, "monthly", None, f"{year-3}-01-01", f"{year}-01-01", 7.5, "active", "SBI 3-year FD"),
+    ]
+    cursor.executemany(
+        "INSERT INTO investments (user_id, name, category, investment_type, invested_amount, current_value, units, purchase_price, sip_amount, sip_frequency, sip_start_date, start_date, maturity_date, interest_rate, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        investments,
     )
     conn.commit()

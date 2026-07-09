@@ -32,6 +32,7 @@
           <a href="{{ url_for('add_expense') }}" {% if request.endpoint == 'add_expense' %}class="nav-active"{% endif %}>Add</a>
           <a href="{{ url_for('loans') }}" {% if request.endpoint in ('loans', 'add_loan', 'edit_loan') %}class="nav-active"{% endif %}>Loans</a>
           <a href="{{ url_for('budgets') }}" {% if request.endpoint == 'budgets' %}class="nav-active"{% endif %}>Budgets</a>
+          <a href="{{ url_for('investments') }}" {% if request.endpoint in ('investments', 'add_investment', 'edit_investment') %}class="nav-active"{% endif %}>Investments</a>
           <a href="{{ url_for('profile') }}" {% if request.endpoint == 'profile' %}class="nav-active"{% endif %}>Profile</a>
           <a href="{{ url_for('export_csv', q=request.args.get('q', ''), from=request.args.get('from', ''), to=request.args.get('to', '')) }}">Export</a>
           <a href="{{ url_for('logout') }}">Sign out</a>

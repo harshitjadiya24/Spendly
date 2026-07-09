@@ -236,11 +236,20 @@ def dashboard():
         else:
             loan_monthly_receive += monthly
 
+    inv_active = db.execute(
+        "SELECT invested_amount, current_value FROM investments WHERE user_id = ? AND status = 'active'",
+        (session["user_id"],),
+    ).fetchall()
+    inv_total_invested = sum(r["invested_amount"] for r in inv_active)
+    inv_total_current = sum(r["current_value"] for r in inv_active)
+    inv_pnl = inv_total_current - inv_total_invested
+    inv_returns_pct = round((inv_pnl / inv_total_invested) * 100, 2) if inv_total_invested > 0 else 0
+
     avail_months = [r["m"] for r in avail_months]
     if not avail_months:
         avail_months = [f"{date.today().year}-{date.today().month:02d}"]
     db.close()
-    return render_template("dashboard.html", expenses=expenses, total=total, income=income, month=month, avail_months=avail_months, budgets=budgets, loan_outstanding=loan_outstanding, loan_monthly_pay=round(loan_monthly_pay), loan_monthly_receive=round(loan_monthly_receive), loan_count=len(loans_active))
+    return render_template("dashboard.html", expenses=expenses, total=total, income=income, month=month, avail_months=avail_months, budgets=budgets, loan_outstanding=loan_outstanding, loan_monthly_pay=round(loan_monthly_pay), loan_monthly_receive=round(loan_monthly_receive), loan_count=len(loans_active), inv_total_invested=inv_total_invested, inv_total_current=inv_total_current, inv_pnl=inv_pnl, inv_returns_pct=inv_returns_pct, inv_count=len(inv_active))
 
 
 # ------------------------------------------------------------------ #
@@ -553,6 +562,210 @@ def delete_loan(id):
     db.close()
     flash("Loan deleted.", "success")
     return redirect(url_for("loans"))
+
+
+# ------------------------------------------------------------------ #
+# Investments                                                         #
+# ------------------------------------------------------------------ #
+
+INVESTMENT_CATEGORIES = ["stocks", "mutual_funds", "fd", "real_estate", "crypto", "gold", "other"]
+
+
+@app.route("/investments")
+@login_required
+def investments():
+    db = get_db()
+    all_inv = db.execute(
+        "SELECT * FROM investments WHERE user_id = ? ORDER BY created_at DESC",
+        (session["user_id"],),
+    ).fetchall()
+    db.close()
+
+    enriched = []
+    for inv in all_inv:
+        pnl = inv["current_value"] - inv["invested_amount"]
+        returns_pct = round((pnl / inv["invested_amount"]) * 100, 2) if inv["invested_amount"] > 0 else 0
+        enriched.append({
+            "id": inv["id"],
+            "name": inv["name"],
+            "category": inv["category"],
+            "investment_type": inv["investment_type"],
+            "invested_amount": inv["invested_amount"],
+            "current_value": inv["current_value"],
+            "units": inv["units"],
+            "purchase_price": inv["purchase_price"],
+            "sip_amount": inv["sip_amount"],
+            "sip_frequency": inv["sip_frequency"],
+            "start_date": inv["start_date"],
+            "maturity_date": inv["maturity_date"],
+            "interest_rate": inv["interest_rate"],
+            "status": inv["status"],
+            "notes": inv["notes"],
+            "pnl": round(pnl),
+            "returns_pct": returns_pct,
+        })
+
+    total_invested = sum(inv["invested_amount"] for inv in enriched)
+    total_current = sum(inv["current_value"] for inv in enriched)
+    total_pnl = total_current - total_invested
+    total_returns_pct = round((total_pnl / total_invested) * 100, 2) if total_invested > 0 else 0
+
+    return render_template(
+        "investments.html",
+        investments=enriched,
+        total_invested=total_invested,
+        total_current=total_current,
+        total_pnl=total_pnl,
+        total_returns_pct=total_returns_pct,
+    )
+
+
+@app.route("/investments/add", methods=["GET", "POST"])
+@login_required
+def add_investment():
+    if request.method == "POST":
+        if not validate_csrf():
+            return render_template("add_investment.html", error="Session expired. Please try again.")
+
+        name = request.form.get("name", "").strip()
+        category = request.form.get("category", "").strip()
+        inv_type = request.form.get("investment_type", "lump_sum")
+        invested = request.form.get("invested_amount", "").strip()
+        current = request.form.get("current_value", "").strip()
+        units = request.form.get("units", "0").strip()
+        purchase_price = request.form.get("purchase_price", "0").strip()
+        sip_amount = request.form.get("sip_amount", "0").strip()
+        sip_frequency = request.form.get("sip_frequency", "monthly")
+        sip_start_date = request.form.get("sip_start_date", "").strip()
+        start_date = request.form.get("start_date", "").strip()
+        maturity_date = request.form.get("maturity_date", "").strip()
+        interest_rate = request.form.get("interest_rate", "0").strip()
+        notes = request.form.get("notes", "").strip()
+
+        error = None
+        if not name:
+            error = "Name is required."
+        elif category not in INVESTMENT_CATEGORIES:
+            error = "Invalid category."
+        elif not re.match(r"^\d+(\.\d{1,2})?$", invested) or float(invested) <= 0:
+            error = "Invalid invested amount."
+        elif not re.match(r"^\d+(\.\d{1,2})?$", current) or float(current) < 0:
+            error = "Invalid current value."
+        elif not start_date:
+            error = "Start date is required."
+
+        if error:
+            return render_template("add_investment.html", error=error, categories=INVESTMENT_CATEGORIES)
+
+        db = get_db()
+        db.execute(
+            "INSERT INTO investments (user_id, name, category, investment_type, invested_amount, current_value, units, purchase_price, sip_amount, sip_frequency, sip_start_date, start_date, maturity_date, interest_rate, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (session["user_id"], name, category, inv_type, float(invested), float(current), float(units), float(purchase_price), float(sip_amount), sip_frequency, sip_start_date or None, start_date, maturity_date or None, float(interest_rate), notes),
+        )
+        db.commit()
+        db.close()
+        flash("Investment added successfully.", "success")
+        return redirect(url_for("investments"))
+
+    return render_template("add_investment.html", categories=INVESTMENT_CATEGORIES)
+
+
+@app.route("/investments/<int:id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_investment(id):
+    db = get_db()
+    inv = db.execute(
+        "SELECT * FROM investments WHERE id = ? AND user_id = ?", (id, session["user_id"])
+    ).fetchone()
+
+    if not inv:
+        db.close()
+        flash("Investment not found.", "error")
+        return redirect(url_for("investments"))
+
+    if request.method == "POST":
+        if not validate_csrf():
+            db.close()
+            return render_template("add_investment.html", error="Session expired. Please try again.", investment=inv, edit=True, categories=INVESTMENT_CATEGORIES)
+
+        name = request.form.get("name", "").strip()
+        category = request.form.get("category", "").strip()
+        inv_type = request.form.get("investment_type", "lump_sum")
+        invested = request.form.get("invested_amount", "").strip()
+        current = request.form.get("current_value", "").strip()
+        units = request.form.get("units", "0").strip()
+        purchase_price = request.form.get("purchase_price", "0").strip()
+        sip_amount = request.form.get("sip_amount", "0").strip()
+        sip_frequency = request.form.get("sip_frequency", "monthly")
+        sip_start_date = request.form.get("sip_start_date", "").strip()
+        start_date = request.form.get("start_date", "").strip()
+        maturity_date = request.form.get("maturity_date", "").strip()
+        interest_rate = request.form.get("interest_rate", "0").strip()
+        status = request.form.get("status", "active")
+        notes = request.form.get("notes", "").strip()
+
+        error = None
+        if not name:
+            error = "Name is required."
+        elif category not in INVESTMENT_CATEGORIES:
+            error = "Invalid category."
+        elif not re.match(r"^\d+(\.\d{1,2})?$", invested) or float(invested) <= 0:
+            error = "Invalid invested amount."
+        elif not re.match(r"^\d+(\.\d{1,2})?$", current) or float(current) < 0:
+            error = "Invalid current value."
+        elif not start_date:
+            error = "Start date is required."
+
+        if error:
+            db.close()
+            return render_template("add_investment.html", error=error, investment=inv, edit=True, categories=INVESTMENT_CATEGORIES)
+
+        db.execute(
+            "UPDATE investments SET name=?, category=?, investment_type=?, invested_amount=?, current_value=?, units=?, purchase_price=?, sip_amount=?, sip_frequency=?, sip_start_date=?, start_date=?, maturity_date=?, interest_rate=?, status=?, notes=? WHERE id=? AND user_id=?",
+            (name, category, inv_type, float(invested), float(current), float(units), float(purchase_price), float(sip_amount), sip_frequency, sip_start_date or None, start_date, maturity_date or None, float(interest_rate), status, notes, id, session["user_id"]),
+        )
+        db.commit()
+        db.close()
+        flash("Investment updated.", "success")
+        return redirect(url_for("investments"))
+
+    db.close()
+    return render_template("add_investment.html", investment=inv, edit=True, categories=INVESTMENT_CATEGORIES)
+
+
+@app.route("/investments/<int:id>/delete", methods=["POST"])
+@login_required
+def delete_investment(id):
+    if not validate_csrf():
+        flash("Session expired. Please try again.", "error")
+        return redirect(url_for("investments"))
+    db = get_db()
+    db.execute("DELETE FROM investments WHERE id = ? AND user_id = ?", (id, session["user_id"]))
+    db.commit()
+    db.close()
+    flash("Investment deleted.", "success")
+    return redirect(url_for("investments"))
+
+
+@app.route("/investments/<int:id>/update-value", methods=["POST"])
+@login_required
+def update_investment_value(id):
+    if not validate_csrf():
+        flash("Session expired. Please try again.", "error")
+        return redirect(url_for("investments"))
+    new_value = request.form.get("current_value", "").strip()
+    if not re.match(r"^\d+(\.\d{1,2})?$", new_value) or float(new_value) < 0:
+        flash("Invalid value.", "error")
+        return redirect(url_for("investments"))
+    db = get_db()
+    db.execute(
+        "UPDATE investments SET current_value = ? WHERE id = ? AND user_id = ?",
+        (float(new_value), id, session["user_id"]),
+    )
+    db.commit()
+    db.close()
+    flash("Value updated.", "success")
+    return redirect(url_for("investments"))
 
 
 # ------------------------------------------------------------------ #

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}{% if edit %}Edit{% else %}Add{% endif %} loan — Spendly{% endblock %}
+
+{% block content %}
+
+<section class="auth-section">
+  <div class="auth-container">
+    <div class="auth-header">
+      <h1 class="auth-title">{% if edit %}Edit loan{% else %}Add a loan{% endif %}</h1>
+      <p class="auth-subtitle">{% if edit %}Update loan details{% else %}Track money you borrowed or lent{% endif %}</p>
+    </div>
+
+    <div class="auth-card">
+      {% if error %}
+      <div class="auth-error">{{ error }}</div>
+      {% endif %}
+
+      <form method="POST" action="{% if edit %}{{ url_for('edit_loan', id=loan.id) }}{% else %}{{ url_for('add_loan') }}{% endif %}">
+        <div class="form-group">
+          <label for="type">Type</label>
+          <select id="type" name="type" class="form-input" required>
+            <option value="borrowed" {% if edit and loan.type == 'borrowed' %}selected{% endif %}>Borrowed (I owe)</option>
+            <option value="lent" {% if edit and loan.type == 'lent' %}selected{% endif %}>Lent (They owe me)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name" class="form-input"
+                 placeholder="e.g. Home Loan, Rahul Sharma"
+                 value="{{ loan.name if edit else '' }}" required autofocus>
+        </div>
+
+        <div class="form-group">
+          <label for="total_amount">Total amount (₹)</label>
+          <input type="text" id="total_amount" name="total_amount" class="form-input"
+                 placeholder="2500000"
+                 value="{{ '%.2f'|format(loan.total_amount) if edit else '' }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="interest_rate">Interest rate (%)</label>
+          <input type="text" id="interest_rate" name="interest_rate" class="form-input"
+                 placeholder="8.5" value="{{ '%.2f'|format(loan.interest_rate) if edit else '0' }}">
+        </div>
+
+        <div class="form-group">
+          <label for="start_date">Start date</label>
+          <input type="date" id="start_date" name="start_date" class="form-input"
+                 value="{{ loan.start_date if edit else '' }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="emi_amount">EMI amount (₹)</label>
+          <input type="text" id="emi_amount" name="emi_amount" class="form-input"
+                 placeholder="25000"
+                 value="{{ '%.2f'|format(loan.emi_amount) if edit else '' }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="total_emis">Total number of EMIs</label>
+          <input type="number" id="total_emis" name="total_emis" class="form-input"
+                 placeholder="120" min="1"
+                 value="{{ loan.total_emis if edit else '' }}" required>
+        </div>
+
+        {% if edit %}
+        <div class="form-group">
+          <label for="paid_emis">EMIs already paid</label>
+          <input type="number" id="paid_emis" name="paid_emis" class="form-input"
+                 min="0" value="{{ loan.paid_emis }}">
+        </div>
+
+        <div class="form-group">
+          <label for="status">Status</label>
+          <select id="status" name="status" class="form-input">
+            <option value="active" {% if loan.status == 'active' %}selected{% endif %}>Active</option>
+            <option value="closed" {% if loan.status == 'closed' %}selected{% endif %}>Closed</option>
+          </select>
+        </div>
+        {% endif %}
+
+        <div class="form-group">
+          <label for="notes">Notes (optional)</label>
+          <textarea id="notes" name="notes" class="form-input" rows="2" placeholder="Bank name or any details">{{ loan.notes if edit else '' }}</textarea>
+        </div>
+
+        <button type="submit" class="btn-submit">{% if edit %}Update loan{% else %}Add loan{% endif %}</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

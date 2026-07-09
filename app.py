@@ -44,7 +44,27 @@ def login_required(f):
 
 @app.route("/")
 def landing():
-    return render_template("landing.html")
+    ctx = {}
+    if "user_id" in session:
+        db = get_db()
+        now = date.today()
+        month = f"{now.year}-{now.month:02d}"
+        categories = db.execute(
+            "SELECT category, COALESCE(SUM(amount), 0) as total FROM expenses "
+            "WHERE user_id = ? AND type = 'expense' AND strftime('%Y-%m', date) = ? "
+            "GROUP BY category ORDER BY total DESC",
+            (session["user_id"], month),
+        ).fetchall()
+        total_spent = db.execute(
+            "SELECT COALESCE(SUM(amount), 0) FROM expenses "
+            "WHERE user_id = ? AND type = 'expense' AND strftime('%Y-%m', date) = ?",
+            (session["user_id"], month),
+        ).fetchone()[0]
+        db.close()
+        ctx["live_categories"] = categories
+        ctx["live_total"] = round(total_spent)
+        ctx["live_month"] = month
+    return render_template("landing.html", **ctx)
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -108,7 +128,7 @@ def login():
                 session["user_id"] = user["id"]
                 session["user_name"] = user["name"]
                 flash(f"Welcome back, {user['name']}!", "success")
-                return redirect(url_for("profile"))
+                return redirect(url_for("landing"))
 
         return render_template("login.html", error=error)
 
@@ -168,8 +188,19 @@ def dashboard():
         (session["user_id"], month),
     ).fetchall()
 
+    loans_active = db.execute(
+        "SELECT type, emi_amount, total_emis, paid_emis FROM loans WHERE user_id = ? AND status = 'active'",
+        (session["user_id"],),
+    ).fetchall()
+    loan_outstanding = 0
+    loan_monthly_emi = 0
+    for l in loans_active:
+        remaining = l["total_emis"] - l["paid_emis"]
+        loan_outstanding += remaining * l["emi_amount"]
+        loan_monthly_emi += l["emi_amount"]
+
     db.close()
-    return render_template("dashboard.html", expenses=expenses, total=total, income=income, month=month, avail_months=[r["m"] for r in avail_months], budgets=budgets)
+    return render_template("dashboard.html", expenses=expenses, total=total, income=income, month=month, avail_months=[r["m"] for r in avail_months], budgets=budgets, loan_outstanding=loan_outstanding, loan_monthly_emi=loan_monthly_emi, loan_count=len(loans_active))
 
 
 # ------------------------------------------------------------------ #
@@ -227,6 +258,220 @@ def delete_budget(id):
     db.close()
     flash("Budget removed.", "success")
     return redirect(request.referrer or url_for("budgets"))
+
+
+# ------------------------------------------------------------------ #
+# Loans                                                                #
+# ------------------------------------------------------------------ #
+
+def _next_emi_date(start_date, paid_emis, freq="monthly"):
+    parts = start_date.split("-")
+    year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+    total_months = year * 12 + month - 1 + paid_emis
+    year = total_months // 12
+    month = total_months % 12 + 1
+    max_day = [31, 29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28,
+               31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]
+    day = min(day, max_day)
+    return f"{year:04d}-{month:02d}-{day:02d}"
+
+def _loan_remaining(loan):
+    return loan["total_emis"] - loan["paid_emis"]
+
+
+@app.route("/loans")
+@login_required
+def loans():
+    db = get_db()
+    all_loans = db.execute(
+        "SELECT * FROM loans WHERE user_id = ? ORDER BY created_at DESC",
+        (session["user_id"],),
+    ).fetchall()
+    db.close()
+
+    enriched = []
+    for l in all_loans:
+        remaining = _loan_remaining(l)
+        next_date = _next_emi_date(l["start_date"], l["paid_emis"], l["emi_frequency"])
+        enriched.append({
+            "id": l["id"],
+            "type": l["type"],
+            "name": l["name"],
+            "total_amount": l["total_amount"],
+            "interest_rate": l["interest_rate"],
+            "start_date": l["start_date"],
+            "emi_amount": l["emi_amount"],
+            "total_emis": l["total_emis"],
+            "paid_emis": l["paid_emis"],
+            "remaining_emis": remaining,
+            "outstanding": remaining * l["emi_amount"],
+            "status": l["status"],
+            "notes": l["notes"],
+            "next_emi_date": next_date,
+            "progress": round(l["paid_emis"] / l["total_emis"] * 100) if l["total_emis"] > 0 else 0,
+        })
+
+    total_borrowed = sum(l["outstanding"] for l in enriched if l["type"] == "borrowed" and l["status"] == "active")
+    total_lent = sum(l["outstanding"] for l in enriched if l["type"] == "lent" and l["status"] == "active")
+    monthly_emi_total = sum(l["emi_amount"] for l in enriched if l["status"] == "active")
+
+    return render_template(
+        "loans.html",
+        loans=enriched,
+        total_borrowed=total_borrowed,
+        total_lent=total_lent,
+        monthly_emi_total=monthly_emi_total,
+    )
+
+
+@app.route("/loans/add", methods=["GET", "POST"])
+@login_required
+def add_loan():
+    if request.method == "POST":
+        loan_type = request.form.get("type")
+        name = request.form.get("name", "").strip()
+        total_amount = request.form.get("total_amount", "").strip()
+        interest_rate = request.form.get("interest_rate", "0").strip()
+        start_date = request.form.get("start_date", "").strip()
+        emi_amount = request.form.get("emi_amount", "").strip()
+        total_emis = request.form.get("total_emis", "").strip()
+        notes = request.form.get("notes", "").strip()
+
+        error = None
+        if not name:
+            error = "Name is required."
+        elif not re.match(r"^\d+(\.\d{1,2})?$", total_amount) or float(total_amount) <= 0:
+            error = "Invalid total amount."
+        elif not re.match(r"^\d+(\.\d{1,2})?$", emi_amount) or float(emi_amount) <= 0:
+            error = "Invalid EMI amount."
+        elif not re.match(r"^\d+$", total_emis) or int(total_emis) <= 0:
+            error = "Invalid number of EMIs."
+        elif not start_date:
+            error = "Start date is required."
+        elif interest_rate and not re.match(r"^\d+(\.\d{1,2})?$", interest_rate):
+            error = "Invalid interest rate."
+
+        if error:
+            return render_template("add_loan.html", error=error)
+
+        db = get_db()
+        db.execute(
+            "INSERT INTO loans (user_id, type, name, total_amount, interest_rate, start_date, emi_amount, total_emis, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (session["user_id"], loan_type, name, float(total_amount), float(interest_rate), start_date, float(emi_amount), int(total_emis), notes),
+        )
+        db.commit()
+        db.close()
+        flash("Loan added successfully.", "success")
+        return redirect(url_for("loans"))
+
+    return render_template("add_loan.html")
+
+
+@app.route("/loans/<int:id>/pay-emi", methods=["POST"])
+@login_required
+def pay_emi(id):
+    db = get_db()
+    loan = db.execute(
+        "SELECT * FROM loans WHERE id = ? AND user_id = ?", (id, session["user_id"])
+    ).fetchone()
+
+    if not loan:
+        db.close()
+        flash("Loan not found.", "error")
+        return redirect(url_for("loans"))
+
+    if loan["paid_emis"] >= loan["total_emis"]:
+        db.close()
+        flash("All EMIs have been paid.", "error")
+        return redirect(url_for("loans"))
+
+    today = date.today().isoformat()
+    emi_num = loan["paid_emis"] + 1
+    description = f"EMI #{emi_num} — {loan['name']}"
+
+    if loan["type"] == "borrowed":
+        cat = "Loan Repayment"
+        exp_type = "expense"
+    else:
+        cat = "Loan Received"
+        exp_type = "income"
+
+    db.execute(
+        "INSERT INTO expenses (user_id, amount, category, date, description, type) VALUES (?, ?, ?, ?, ?, ?)",
+        (session["user_id"], loan["emi_amount"], cat, today, description, exp_type),
+    )
+    db.execute(
+        "UPDATE loans SET paid_emis = paid_emis + 1 WHERE id = ?",
+        (id,),
+    )
+    db.commit()
+    db.close()
+
+    flash(f"EMI #{emi_num} paid for {loan['name']}.", "success")
+    return redirect(url_for("loans"))
+
+
+@app.route("/loans/<int:id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_loan(id):
+    db = get_db()
+    loan = db.execute(
+        "SELECT * FROM loans WHERE id = ? AND user_id = ?", (id, session["user_id"])
+    ).fetchone()
+
+    if not loan:
+        db.close()
+        flash("Loan not found.", "error")
+        return redirect(url_for("loans"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        total_amount = request.form.get("total_amount", "").strip()
+        interest_rate = request.form.get("interest_rate", "0").strip()
+        emi_amount = request.form.get("emi_amount", "").strip()
+        total_emis = request.form.get("total_emis", "").strip()
+        paid_emis = request.form.get("paid_emis", "0").strip()
+        status = request.form.get("status", "active")
+        notes = request.form.get("notes", "").strip()
+
+        error = None
+        if not name:
+            error = "Name is required."
+        elif not re.match(r"^\d+(\.\d{1,2})?$", total_amount) or float(total_amount) <= 0:
+            error = "Invalid total amount."
+        elif not re.match(r"^\d+(\.\d{1,2})?$", emi_amount) or float(emi_amount) <= 0:
+            error = "Invalid EMI amount."
+        elif not re.match(r"^\d+$", total_emis) or int(total_emis) <= 0:
+            error = "Invalid total EMIs."
+        elif not re.match(r"^\d+$", paid_emis) or int(paid_emis) < 0 or int(paid_emis) > int(total_emis):
+            error = "Invalid paid EMIs count."
+
+        if error:
+            db.close()
+            return render_template("add_loan.html", error=error, loan=loan, edit=True)
+
+        db.execute(
+            "UPDATE loans SET name=?, total_amount=?, interest_rate=?, emi_amount=?, total_emis=?, paid_emis=?, status=?, notes=? WHERE id=? AND user_id=?",
+            (name, float(total_amount), float(interest_rate), float(emi_amount), int(total_emis), int(paid_emis), status, notes, id, session["user_id"]),
+        )
+        db.commit()
+        db.close()
+        flash("Loan updated.", "success")
+        return redirect(url_for("loans"))
+
+    db.close()
+    return render_template("add_loan.html", loan=loan, edit=True)
+
+
+@app.route("/loans/<int:id>/delete", methods=["POST"])
+@login_required
+def delete_loan(id):
+    db = get_db()
+    db.execute("DELETE FROM loans WHERE id = ? AND user_id = ?", (id, session["user_id"]))
+    db.commit()
+    db.close()
+    flash("Loan deleted.", "success")
+    return redirect(url_for("loans"))
 
 
 # ------------------------------------------------------------------ #

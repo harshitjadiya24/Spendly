@@ -51,6 +51,27 @@ def init_db():
     """)
     conn.commit()
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS loans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('borrowed', 'lent')),
+            name TEXT NOT NULL,
+            total_amount REAL NOT NULL,
+            interest_rate REAL DEFAULT 0,
+            start_date TEXT NOT NULL,
+            emi_amount REAL NOT NULL,
+            emi_frequency TEXT DEFAULT 'monthly',
+            total_emis INTEGER NOT NULL,
+            paid_emis INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'active',
+            notes TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+    """)
+    conn.commit()
+
     cursor.execute("PRAGMA table_info(expenses)")
     cols = {row[1] for row in cursor.fetchall()}
     if "type" not in cols:
@@ -71,6 +92,7 @@ def seed_db():
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] > 0:
+        _seed_loans(conn)
         conn.close()
         return
 
@@ -102,5 +124,28 @@ def seed_db():
         expenses,
     )
 
+    _seed_loans(conn, user_id)
     conn.commit()
     conn.close()
+
+
+def _seed_loans(conn, user_id=None):
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM loans")
+    if cursor.fetchone()[0] > 0:
+        return
+    year = datetime.now().year
+    if user_id is None:
+        user = cursor.execute("SELECT id FROM users WHERE email = ?", ("demo@spendly.com",)).fetchone()
+        if not user:
+            return
+        user_id = user["id"]
+    loans = [
+        (user_id, "borrowed", "Home Loan", 2500000, 8.5, f"{year}-01-15", 25000, "monthly", 120, 15, "active", "SBI home loan"),
+        (user_id, "lent", "Rahul Sharma", 50000, 0, f"{year}-03-10", 5000, "monthly", 10, 4, "active", "Personal loan to friend"),
+    ]
+    cursor.executemany(
+        "INSERT INTO loans (user_id, type, name, total_amount, interest_rate, start_date, emi_amount, emi_frequency, total_emis, paid_emis, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        loans,
+    )
+    conn.commit()

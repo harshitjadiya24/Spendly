@@ -1902,6 +1902,72 @@ html.dark .form-input:focus {
 }
 
 /* ------------------------------------------------------------------ */
+/* Confirm popup                                                       */
+/* ------------------------------------------------------------------ */
+
+.confirm-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: rgba(0,0,0,0.4);
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.confirm-overlay.active {
+    display: flex;
+}
+
+.confirm-box {
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1.25rem 1.5rem;
+    max-width: 300px;
+    width: 100%;
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+}
+
+.confirm-msg {
+    font-size: 0.9rem;
+    color: var(--ink);
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+.confirm-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+/* ------------------------------------------------------------------ */
+/* Loans page                                                          */
+/* ------------------------------------------------------------------ */
+
+.loan-progress-sm {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 140px;
+}
+
+.loan-progress-sm .budget-track {
+    flex: 1;
+    height: 6px;
+}
+
+.loan-actions {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+/* ------------------------------------------------------------------ */
 /* Responsive                                                          */
 /* ------------------------------------------------------------------ */
 

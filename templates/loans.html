@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Loans — Spendly{% endblock %}
+
+{% block content %}
+
+<section class="dashboard">
+  <div class="dashboard-header">
+    <h1 class="dashboard-title">Loans</h1>
+    <a href="{{ url_for('add_loan') }}" class="btn-primary">+ Add loan</a>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="flash-bar flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+  {% endwith %}
+
+  <div class="dashboard-metrics" style="margin-bottom:2rem;">
+    <div class="metric-sm">
+      <span class="metric-sm-label">Borrowed outstanding</span>
+      <span class="metric-sm-value spent" style="color:var(--danger);">₹{{ "{:,.0f}".format(total_borrowed) }}</span>
+    </div>
+    <div class="metric-sm">
+      <span class="metric-sm-label">Lent outstanding</span>
+      <span class="metric-sm-value income">₹{{ "{:,.0f}".format(total_lent) }}</span>
+    </div>
+    <div class="metric-sm">
+      <span class="metric-sm-label">Monthly EMI total</span>
+      <span class="metric-sm-value spent">₹{{ "{:,.0f}".format(monthly_emi_total) }}</span>
+    </div>
+  </div>
+
+  {% if loans %}
+  <div class="dashboard-card" style="padding:0;overflow:hidden;">
+    <div style="overflow-x:auto;">
+      <table class="ledger-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Total</th>
+            <th>EMI</th>
+            <th>Progress</th>
+            <th>Remaining</th>
+            <th>Next EMI</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for l in loans %}
+          <tr>
+            <td style="font-weight:500;">{{ l.name }}</td>
+            <td>
+              {% if l.type == 'borrowed' %}
+              <span class="type-badge type-expense">Borrowed</span>
+              {% else %}
+              <span class="type-badge type-income">Lent</span>
+              {% endif %}
+            </td>
+            <td class="col-amt">₹{{ "{:,.0f}".format(l.total_amount) }}</td>
+            <td class="col-amt">₹{{ "{:,.0f}".format(l.emi_amount) }}</td>
+            <td style="min-width:160px;">
+              <div style="display:flex;align-items:center;gap:0.6rem;">
+                <div class="budget-track" style="flex:1;height:6px;">
+                  <div class="budget-bar {% if l.progress >= 100 %}budget-bar-over{% elif l.progress > 80 %}budget-bar-warn{% endif %}"
+                       style="width:{{ l.progress }}%;"></div>
+                </div>
+                <span style="font-size:0.78rem;font-weight:500;color:var(--ink-muted);white-space:nowrap;">{{ l.progress }}%</span>
+              </div>
+            </td>
+            <td class="col-amt">{{ l.remaining_emis }} EMIs</td>
+            <td style="font-size:0.8rem;font-family:'IBM Plex Mono',monospace;color:var(--ink-muted);white-space:nowrap;">
+              {% if l.status == 'active' %}{{ l.next_emi_date }}{% else %}—{% endif %}
+            </td>
+            <td>
+              {% if l.status == 'active' %}
+              <span class="ledger-badge" style="--cat-color:var(--accent);">Active</span>
+              {% else %}
+              <span class="ledger-badge" style="--cat-color:var(--ink-faint);">Closed</span>
+              {% endif %}
+            </td>
+            <td>
+              <div style="display:flex;gap:0.3rem;">
+                {% if l.status == 'active' and l.remaining_emis > 0 and l.type == 'borrowed' %}
+                <form method="POST" action="{{ url_for('pay_emi', id=l.id) }}" style="display:inline;">
+                  <button type="submit" class="btn-ghost-sm" style="color:var(--accent);border-color:var(--accent);">Pay EMI</button>
+                </form>
+                {% endif %}
+                <a href="{{ url_for('edit_loan', id=l.id) }}" class="btn-ghost-sm">Edit</a>
+                <form method="POST" action="{{ url_for('delete_loan', id=l.id) }}" style="display:inline;"
+                      onsubmit="var f=this;showConfirm('Delete this loan?',function(){f.submit();});return false;">
+                  <button type="submit" class="btn-ghost-sm" style="color:var(--danger);">&times;</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="dashboard-card">
+    <div class="dashboard-empty">
+      <p>No loans yet.</p>
+      <p><a href="{{ url_for('add_loan') }}">Add your first loan</a></p>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}

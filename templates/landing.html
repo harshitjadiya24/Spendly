@@ -22,7 +22,7 @@
             one transaction at a time.
         </p>
         <div class="hero-actions">
-            <a href="{{ url_for('register') }}" class="btn-primary">Start tracking free</a>
+            <a href="{{ url_for('dashboard' if session.user_id else 'register') }}" class="btn-primary">Start tracking{{ '' if session.user_id else ' free' }}</a>
             <button class="btn-play" id="howItWorksBtn">▶ See how it works</button>
         </div>
     </div>
@@ -44,6 +44,24 @@
 
     <div class="hero-visual">
         <div class="mock-card">
+            {% if live_categories %}
+            <div class="mock-card-header">
+                <span class="mock-label">{{ live_month }}</span>
+                <span class="mock-total">₹{{ "{:,}".format(live_total) }}</span>
+            </div>
+            <div class="mock-bars">
+                {% for cat in live_categories[:4] %}
+                {% set pct = (cat.total / live_total * 100)|round %}
+                <div class="mock-bar-row">
+                    <span class="mock-cat">{{ cat.category }}</span>
+                    <div class="mock-bar-track">
+                        <div class="mock-bar{% if loop.index > 1 %} mock-bar-{{ loop.index }}{% endif %}" style="width: {{ pct }}%"></div>
+                    </div>
+                    <span class="mock-amt">₹{{ "{:,.0f}".format(cat.total) }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
             <div class="mock-card-header">
                 <span class="mock-label">March 2026</span>
                 <span class="mock-total">₹12,450</span>
@@ -78,6 +96,7 @@
                     <span class="mock-amt">₹1,800</span>
                 </div>
             </div>
+            {% endif %}
         </div>
     </div>
 </section>
@@ -106,7 +125,7 @@
     <div class="cta-inner">
         <h2 class="cta-title">Ready to take control?</h2>
         <p class="cta-body">Join thousands of people who track their expenses with Spendly.</p>
-        <a href="{{ url_for('register') }}" class="btn-primary">Create free account</a>
+        <a href="{{ url_for('dashboard' if session.user_id else 'register') }}" class="btn-primary">{% if session.user_id %}Go to dashboard{% else %}Create free account{% endif %}</a>
     </div>
 </section>
 

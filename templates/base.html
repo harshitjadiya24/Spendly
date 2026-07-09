@@ -30,6 +30,7 @@
           <a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}class="nav-active"{% endif %}>Dashboard</a>
           <a href="{{ url_for('ledger') }}" {% if request.endpoint == 'ledger' %}class="nav-active"{% endif %}>Ledger</a>
           <a href="{{ url_for('add_expense') }}" {% if request.endpoint == 'add_expense' %}class="nav-active"{% endif %}>Add</a>
+          <a href="{{ url_for('loans') }}" {% if request.endpoint in ('loans', 'add_loan', 'edit_loan') %}class="nav-active"{% endif %}>Loans</a>
           <a href="{{ url_for('budgets') }}" {% if request.endpoint == 'budgets' %}class="nav-active"{% endif %}>Budgets</a>
           <a href="{{ url_for('profile') }}" {% if request.endpoint == 'profile' %}class="nav-active"{% endif %}>Profile</a>
           <a href="{{ url_for('export_csv') }}">Export</a>
@@ -60,6 +61,16 @@
         </div>
       </div>
     </footer>
+
+    <div class="confirm-overlay" id="confirmOverlay">
+      <div class="confirm-box">
+        <p class="confirm-msg" id="confirmMsg">Delete this?</p>
+        <div class="confirm-actions">
+          <button class="btn-ghost-sm" id="confirmCancel">Cancel</button>
+          <button class="btn-primary btn-sm" id="confirmOk" style="background:var(--danger);">Delete</button>
+        </div>
+      </div>
+    </div>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     {% block scripts %}{% endblock %}

@@ -70,6 +70,30 @@
   </div>
   {% endif %}
 
+  {# --- Loans summary --- #}
+  {% if loan_count > 0 %}
+  <div class="chart-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+      <h2 class="section-subtitle" style="margin:0;">Active loans</h2>
+      <a href="{{ url_for('loans') }}" class="btn-ghost-sm">Manage</a>
+    </div>
+    <div class="dashboard-metrics">
+      <div class="metric-sm">
+        <span class="metric-sm-label">Outstanding</span>
+        <span class="metric-sm-value spent" style="color:var(--danger);">₹{{ "{:,.0f}".format(loan_outstanding) }}</span>
+      </div>
+      <div class="metric-sm">
+        <span class="metric-sm-label">Monthly EMIs</span>
+        <span class="metric-sm-value spent">₹{{ "{:,.0f}".format(loan_monthly_emi) }}</span>
+      </div>
+      <div class="metric-sm">
+        <span class="metric-sm-label">Active loans</span>
+        <span class="metric-sm-value spent">{{ loan_count }}</span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {# --- Transactions --- #}
   <div class="dashboard-card">
     <h2 class="section-subtitle">Transactions — {{ month }}</h2>

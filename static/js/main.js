@@ -42,6 +42,40 @@ if (toggle) {
     });
 }
 
+// Confirm popup
+const confirmOverlay = document.getElementById('confirmOverlay');
+const confirmMsg = document.getElementById('confirmMsg');
+const confirmOk = document.getElementById('confirmOk');
+const confirmCancel = document.getElementById('confirmCancel');
+let confirmCallback = null;
+
+if (confirmOverlay) {
+    confirmCancel.addEventListener('click', closeConfirm);
+    confirmOverlay.addEventListener('click', (e) => {
+        if (e.target === confirmOverlay) closeConfirm();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && confirmOverlay.classList.contains('active')) closeConfirm();
+    });
+    confirmOk.addEventListener('click', () => {
+        if (confirmCallback) confirmCallback();
+        closeConfirm();
+    });
+}
+
+function closeConfirm() {
+    if (!confirmOverlay) return;
+    confirmOverlay.classList.remove('active');
+    confirmCallback = null;
+}
+
+function showConfirm(msg, callback) {
+    if (!confirmOverlay) return;
+    confirmMsg.textContent = msg;
+    confirmCallback = callback;
+    confirmOverlay.classList.add('active');
+}
+
 // Hamburger nav toggle
 const navToggle = document.getElementById('navToggle');
 const navLinks = document.getElementById('navLinks');

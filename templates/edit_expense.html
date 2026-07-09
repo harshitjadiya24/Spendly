@@ -56,7 +56,7 @@
       </form>
 
       <form method="POST" action="{{ url_for('delete_expense', id=expense.id) }}"
-            style="margin-top:1rem" onsubmit="return confirm('Delete this transaction?')">
+            style="margin-top:1rem" onsubmit="var f=this;showConfirm('Delete this transaction?',function(){f.submit();});return false;">
         <button type="submit" class="btn-delete">Delete</button>
       </form>
     </div>

@@ -38,6 +38,9 @@
           {% endfor %}
         </select>
         <input type="text" name="amount" class="form-input" style="width:120px;" placeholder="Amount" required>
+        <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.8rem;cursor:pointer;">
+          <input type="checkbox" name="rollover" value="1"> Rollover
+        </label>
         <button type="submit" class="btn-primary btn-sm">Set budget</button>
       </div>
     </form>
@@ -49,7 +52,7 @@
       {% set over = b.amount > 0 and b.spent > b.amount %}
       <div class="budget-row">
         <div class="budget-row-header">
-          <span class="budget-cat">{{ b.category }}</span>
+          <span class="budget-cat">{{ b.category }}{% if b.rollover %} <span style="font-size:0.65rem;color:var(--accent);font-weight:500;">↻ rollover</span>{% endif %}</span>
           <span class="budget-numbers">
             ₹{{ "%.0f"|format(b.spent) }} / ₹{{ "%.0f"|format(b.amount) }}
             {% if over %}

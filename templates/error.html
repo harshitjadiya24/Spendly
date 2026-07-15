@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} — Spendly{% endblock %}
+{% block content %}
+<section class="auth-section">
+  <div class="auth-container" style="text-align:center">
+    <div class="auth-card">
+      <div style="font-family:var(--font-display);font-size:4rem;color:var(--accent);line-height:1;margin-bottom:0.5rem">{{ code }}</div>
+      <p style="font-size:1.1rem;color:var(--ink-muted);margin-bottom:1.5rem">{{ message }}</p>
+      <a href="{{ url_for('landing') }}" class="btn-primary">Go home</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

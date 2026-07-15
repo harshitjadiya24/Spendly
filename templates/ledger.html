@@ -114,7 +114,7 @@
   <div class="ledger-filters">
     <form method="GET" action="{{ url_for('ledger') }}" class="filter-form">
       <input type="text" name="q" class="form-input filter-search" placeholder="Search description..." value="{{ q }}">
-      <input type="date" name="from" class="form-input filter-date" value="{{ date_from }}" title="From">
+      <input type="date" name="date_from" class="form-input filter-date" value="{{ date_from }}" title="From">
       <input type="date" name="to" class="form-input filter-date" value="{{ date_to }}" title="To">
       <input type="hidden" name="sort" value="{{ sort }}">
       <input type="hidden" name="order" value="{{ order }}">
@@ -136,15 +136,15 @@
         <thead>
           <tr>
             <th class="col-date">
-              <a href="{{ url_for('ledger', q=q, from=date_from, to=date_to, sort='date', order='desc' if sort == 'date' and order == 'asc' else 'asc', page=1) }}" class="sort-link">Date {% if sort == 'date' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}</a>
+              <a href="{{ url_for('ledger', q=q, date_from=date_from, to=date_to, sort='date', order='desc' if sort == 'date' and order == 'asc' else 'asc', page=1) }}" class="sort-link">Date {% if sort == 'date' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}</a>
             </th>
             <th class="col-cat">Type</th>
             <th class="col-cat">
-              <a href="{{ url_for('ledger', q=q, from=date_from, to=date_to, sort='category', order='desc' if sort == 'category' and order == 'asc' else 'asc', page=1) }}" class="sort-link">Category {% if sort == 'category' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}</a>
+              <a href="{{ url_for('ledger', q=q, date_from=date_from, to=date_to, sort='category', order='desc' if sort == 'category' and order == 'asc' else 'asc', page=1) }}" class="sort-link">Category {% if sort == 'category' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}</a>
             </th>
             <th class="col-desc">Description</th>
             <th class="col-amt">
-              <a href="{{ url_for('ledger', q=q, from=date_from, to=date_to, sort='amount', order='desc' if sort == 'amount' and order == 'asc' else 'asc', page=1) }}" class="sort-link">Amount {% if sort == 'amount' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}</a>
+              <a href="{{ url_for('ledger', q=q, date_from=date_from, to=date_to, sort='amount', order='desc' if sort == 'amount' and order == 'asc' else 'asc', page=1) }}" class="sort-link">Amount {% if sort == 'amount' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}</a>
             </th>
             {% if show_running %}<th class="col-run">Running balance</th>{% endif %}
             <th></th>
@@ -163,7 +163,14 @@
             <td class="col-desc">{{ row.description or "—" }}</td>
             <td class="col-amt {% if row.type == 'income' %}income{% endif %}">₹{{ "%.2f"|format(row.amount) }}</td>
             {% if show_running %}<td class="col-run">₹{{ "%.2f"|format(row.running) }}</td>{% endif %}
-            <td><a href="{{ url_for('edit_expense', id=row.id) }}" class="btn-ghost-sm">Edit</a></td>
+            <td style="display:flex;gap:0.3rem;align-items:center;">
+              <a href="{{ url_for('edit_expense', id=row.id) }}" class="btn-ghost-sm">Edit</a>
+              <form method="POST" action="{{ url_for('delete_expense', id=row.id) }}" style="display:inline;"
+                    onsubmit="var f=this;showConfirm('Delete this transaction?',function(){f.submit();});return false;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn-ghost-sm" style="color:var(--danger);">Delete</button>
+              </form>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -174,11 +181,11 @@
     {% if total_pages > 1 %}
     <div class="pagination">
       {% if page > 1 %}
-      <a href="{{ url_for('ledger', q=q, from=date_from, to=date_to, sort=sort, order=order, page=page-1) }}" class="page-link">« Prev</a>
+      <a href="{{ url_for('ledger', q=q, date_from=date_from, to=date_to, sort=sort, order=order, page=page-1) }}" class="page-link">« Prev</a>
       {% endif %}
       <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
       {% if page < total_pages %}
-      <a href="{{ url_for('ledger', q=q, from=date_from, to=date_to, sort=sort, order=order, page=page+1) }}" class="page-link">Next »</a>
+      <a href="{{ url_for('ledger', q=q, date_from=date_from, to=date_to, sort=sort, order=order, page=page+1) }}" class="page-link">Next »</a>
       {% endif %}
     </div>
     {% endif %}

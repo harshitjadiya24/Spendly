@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Savings Goals — Spendly{% endblock %}
+
+{% block content %}
+
+<section class="dashboard">
+  <div class="dashboard-header">
+    <div>
+      <h1 class="dashboard-title">Savings Goals</h1>
+    </div>
+    <button class="btn-primary" onclick="document.getElementById('addGoalSection').classList.toggle('hidden')">+ Add Goal</button>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="auth-{{ category }}">{{ message }}</div>
+  {% endfor %}
+  {% endwith %}
+
+  {% set active_goals = goals|selectattr('status', 'equalto', 'active')|list %}
+  {% set completed_goals = goals|selectattr('status', 'equalto', 'completed')|list %}
+  {% set total_target = goals|sum(attribute='target_amount') %}
+  {% set total_saved = goals|sum(attribute='current_amount') %}
+  {% set overall_progress = (total_saved / total_target * 100)|round if total_target > 0 else 0 %}
+
+  <div class="dashboard-metrics" style="margin-bottom:1.5rem;">
+    <div class="metric-sm">
+      <span class="metric-sm-label">Active goals</span>
+      <span class="metric-sm-value">{{ active_goals|length }}</span>
+    </div>
+    <div class="metric-sm">
+      <span class="metric-sm-label">Total target</span>
+      <span class="metric-sm-value">₹{{ "{:,.0f}".format(total_target) }}</span>
+    </div>
+    <div class="metric-sm">
+      <span class="metric-sm-label">Total saved</span>
+      <span class="metric-sm-value income">₹{{ "{:,.0f}".format(total_saved) }}</span>
+    </div>
+    <div class="metric-sm">
+      <span class="metric-sm-label">Overall progress</span>
+      <span class="metric-sm-value">{{ overall_progress }}%</span>
+    </div>
+  </div>
+
+  <div id="addGoalSection" class="dashboard-card {% if not show_form %}hidden{% endif %}" style="margin-bottom:1.5rem;">
+    <h2 style="font-family:var(--font-display);font-size:1.1rem;color:var(--ink);margin-bottom:1.25rem;">New savings goal</h2>
+    <form method="POST" action="{{ url_for('goals') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end;">
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-muted);margin-bottom:0.25rem;">Name</label>
+          <input type="text" name="name" class="form-input" placeholder="Goal name" required>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-muted);margin-bottom:0.25rem;">Target (₹)</label>
+          <input type="number" name="target_amount" class="form-input" placeholder="0" step="0.01" min="1" required>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-muted);margin-bottom:0.25rem;">Deadline</label>
+          <input type="date" name="deadline" class="form-input">
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;color:var(--ink-muted);margin-bottom:0.25rem;">Icon</label>
+          <input type="text" name="icon" class="form-input" placeholder="🎯" style="width:60px;" maxlength="4">
+        </div>
+        <button type="submit" class="btn-primary btn-sm">Create goal</button>
+      </div>
+    </form>
+  </div>
+
+  {% if not goals %}
+  <div class="dashboard-card">
+    <div class="dashboard-empty">
+      <p>No savings goals yet. Start one above to track your progress!</p>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if goals %}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1.25rem;">
+    {% for goal in goals %}
+    {% set is_completed = goal.status == 'completed' %}
+    {% set is_cancelled = goal.status == 'cancelled' %}
+    <div class="dashboard-card" style="{% if is_completed %}opacity:0.75;{% endif %}position:relative;">
+      {% if is_completed %}
+      <div style="position:absolute;top:0.75rem;right:0.75rem;font-size:1.5rem;line-height:1;" title="Completed">✓</div>
+      {% endif %}
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+        <span style="font-size:2rem;line-height:1;">{{ goal.icon or '🎯' }}</span>
+        <div>
+          <h3 style="margin:0;font-size:1rem;font-weight:600;color:var(--ink);">{{ goal.name }}</h3>
+          {% if goal.deadline %}
+          <span style="font-size:0.8rem;color:var(--ink-muted);">Due {{ goal.deadline }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div style="margin-bottom:0.5rem;">
+        <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.3rem;">
+          <span style="color:var(--ink-muted);">₹{{ "{:,.0f}".format(goal.current_amount) }} / ₹{{ "{:,.0f}".format(goal.target_amount) }}</span>
+          <span style="font-weight:600;">{{ goal.progress }}%</span>
+        </div>
+        <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:{{ goal.progress }}%;background:{% if is_completed %}var(--accent){% elif is_cancelled %}var(--danger){% elif goal.progress >= 75 %}var(--accent){% elif goal.progress >= 50 %}var(--accent-2){% else %}var(--accent-2){% endif %};border-radius:4px;transition:width 0.4s ease;"></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;">
+        <span class="cat-badge" style="background:{% if is_completed %}var(--accent){% elif is_cancelled %}var(--danger){% else %}var(--accent-2){% endif %};color:#fff;font-size:0.75rem;">{{ goal.status|capitalize }}</span>
+      </div>
+      {% if goal.notes %}
+      <p style="font-size:0.85rem;color:var(--ink-muted);margin:0.5rem 0 0;">{{ goal.notes }}</p>
+      {% endif %}
+      <hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0;">
+      <div style="display:flex;gap:0.5rem;align-items:center;">
+        <form method="POST" action="{{ url_for('contribute_goal', id=goal.id) }}" style="display:flex;align-items:center;gap:0.4rem;flex:1;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="number" name="amount" class="form-input" placeholder="Amount" step="0.01" min="0.01" required style="width:100px;font-size:0.85rem;padding:0.3rem 0.5rem;">
+          <button type="submit" class="btn-primary btn-sm" {% if is_completed or is_cancelled %}disabled{% endif %}>Add</button>
+        </form>
+        <form method="POST" action="{{ url_for('delete_goal', id=goal.id) }}" style="display:inline;" onsubmit="return confirm('Delete this goal?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn-ghost-sm" style="color:var(--danger);">Delete</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<style>
+.hidden { display:none; }
+</style>
+{% endblock %}

@@ -6,7 +6,7 @@ DATABASE = "spendly.db"
 
 
 def get_db():
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DATABASE, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
@@ -108,6 +108,168 @@ def init_db():
         );
     """)
     conn.commit()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS categorization_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            match_type TEXT NOT NULL CHECK(match_type IN ('contains','starts_with','equals','regex')),
+            match_pattern TEXT NOT NULL,
+            assign_category TEXT NOT NULL,
+            assign_type TEXT NOT NULL DEFAULT 'expense',
+            priority INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+    """)
+    conn.commit()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS recurring_patterns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            category TEXT NOT NULL,
+            amount REAL NOT NULL,
+            description_pattern TEXT,
+            frequency TEXT NOT NULL CHECK(frequency IN ('weekly','monthly','quarterly','yearly')),
+            day_of_month INTEGER,
+            day_of_week INTEGER,
+            last_occurrence TEXT,
+            next_occurrence TEXT,
+            active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+    """)
+    conn.commit()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS splits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expense_id INTEGER NOT NULL,
+            created_by INTEGER NOT NULL,
+            total_amount REAL NOT NULL,
+            settled INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (expense_id) REFERENCES expenses(id),
+            FOREIGN KEY (created_by) REFERENCES users(id)
+        );
+    """)
+    conn.commit()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS split_participants (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            split_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            amount REAL NOT NULL,
+            settled INTEGER DEFAULT 0,
+            FOREIGN KEY (split_id) REFERENCES splits(id)
+        );
+    """)
+    conn.commit()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL DEFAULT 'checking' CHECK(type IN ('checking','savings','cash','credit','investment','other')),
+            currency TEXT NOT NULL DEFAULT 'INR',
+            balance REAL NOT NULL DEFAULT 0,
+            icon TEXT DEFAULT '🏦',
+            is_default INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+    """)
+    conn.commit()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS savings_goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            target_amount REAL NOT NULL,
+            current_amount REAL DEFAULT 0,
+            deadline TEXT,
+            icon TEXT DEFAULT '🎯',
+            notes TEXT DEFAULT '',
+            status TEXT DEFAULT 'active' CHECK(status IN ('active','completed','cancelled')),
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+    """)
+    conn.commit()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('budget_warning','budget_exceeded','bill_due','goal_milestone','unusual_spending')),
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            data TEXT,
+            read INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+    """)
+    conn.commit()
+
+    cursor.execute("PRAGMA table_info(expenses)")
+    exp_cols = {row[1] for row in cursor.fetchall()}
+    if "account_id" not in exp_cols:
+        cursor.execute("ALTER TABLE expenses ADD COLUMN account_id INTEGER DEFAULT NULL REFERENCES accounts(id)")
+        conn.commit()
+    if "currency" not in exp_cols:
+        cursor.execute("ALTER TABLE expenses ADD COLUMN currency TEXT DEFAULT 'INR'")
+        conn.commit()
+    if "exchange_rate" not in exp_cols:
+        cursor.execute("ALTER TABLE expenses ADD COLUMN exchange_rate REAL DEFAULT 1")
+        conn.commit()
+
+    cursor.execute("PRAGMA table_info(budgets)")
+    bud_cols = {row[1] for row in cursor.fetchall()}
+    if "rollover" not in bud_cols:
+        cursor.execute("ALTER TABLE budgets ADD COLUMN rollover INTEGER DEFAULT 0")
+        conn.commit()
+
+    # --- Database triggers ---
+    cursor.executescript("""
+        DROP TRIGGER IF EXISTS trg_expenses_ai;
+        CREATE TRIGGER trg_expenses_ai AFTER INSERT ON expenses
+        BEGIN
+            UPDATE accounts SET balance = balance + NEW.amount
+            WHERE id = NEW.account_id AND NEW.type = 'income';
+            UPDATE accounts SET balance = balance - NEW.amount
+            WHERE id = NEW.account_id AND NEW.type = 'expense';
+        END;
+
+        DROP TRIGGER IF EXISTS trg_expenses_ad;
+        CREATE TRIGGER trg_expenses_ad AFTER DELETE ON expenses
+        BEGIN
+            UPDATE accounts SET balance = balance - OLD.amount
+            WHERE id = OLD.account_id AND OLD.type = 'income';
+            UPDATE accounts SET balance = balance + OLD.amount
+            WHERE id = OLD.account_id AND OLD.type = 'expense';
+        END;
+
+        DROP TRIGGER IF EXISTS trg_expenses_au;
+        CREATE TRIGGER trg_expenses_au AFTER UPDATE OF amount, type, account_id ON expenses
+        BEGIN
+            UPDATE accounts SET balance = balance - OLD.amount
+            WHERE id = OLD.account_id AND OLD.type = 'income';
+            UPDATE accounts SET balance = balance + OLD.amount
+            WHERE id = OLD.account_id AND OLD.type = 'expense';
+            UPDATE accounts SET balance = balance + NEW.amount
+            WHERE id = NEW.account_id AND NEW.type = 'income';
+            UPDATE accounts SET balance = balance - NEW.amount
+            WHERE id = NEW.account_id AND NEW.type = 'expense';
+        END;
+    """)
+    conn.commit()
+
     conn.close()
 
 

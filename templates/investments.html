@@ -74,7 +74,7 @@
               {% endif %}
             </td>
             <td>
-              <div style="display:flex;gap:0.3rem;flex-wrap:wrap;">
+              <div style="display:flex;gap:0.3rem;flex-wrap:wrap;align-items:center;">
                 {% if inv.status == 'active' %}
                 <form method="POST" action="{{ url_for('update_investment_value', id=inv.id) }}" style="display:inline-flex;gap:0.25rem;align-items:center;">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -86,7 +86,7 @@
                 <form method="POST" action="{{ url_for('delete_investment', id=inv.id) }}" style="display:inline;"
                       onsubmit="var f=this;showConfirm('Delete this investment?',function(){f.submit();});return false;">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                  <button type="submit" class="btn-ghost-sm" style="color:var(--danger);">&times;</button>
+                  <button type="submit" class="btn-ghost-sm" style="color:var(--danger);">Delete</button>
                 </form>
               </div>
             </td>

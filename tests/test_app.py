@@ -8,8 +8,8 @@ class TestAuth:
         assert b"Create your account" in r.data
 
     def _register(self, client, **kw):
-        data = {"name": "A", "email": "a@test.com", "password": "password123",
-                "confirm_password": "password123"}
+        data = {"name": "A", "email": "a@test.com", "password": "Password123!",
+                "confirm_password": "Password123!"}
         data.update(kw)
         return client.post("/register", data=data, follow_redirects=True)
 
@@ -34,7 +34,7 @@ class TestAuth:
     def test_login_success(self, client):
         self._register(client, name="Alice", email="alice@test.com")
         r = client.post("/login", data={
-            "email": "alice@test.com", "password": "password123",
+            "email": "alice@test.com", "password": "Password123!",
         }, follow_redirects=True)
         assert b"Welcome back" in r.data
 
@@ -47,20 +47,20 @@ class TestAuth:
     def test_logout(self, client):
         self._register(client)
         client.post("/login", data={
-            "email": "a@test.com", "password": "password123",
+            "email": "a@test.com", "password": "Password123!",
         })
-        r = client.get("/logout", follow_redirects=True)
+        r = client.post("/logout", follow_redirects=True)
         assert b"signed out" in r.data
 
 
 class TestAuthProtection:
     def _login(self, client):
         client.post("/register", data={
-            "name": "U", "email": "u@test.com", "password": "password123",
-            "confirm_password": "password123",
+            "name": "U", "email": "u@test.com", "password": "Password123!",
+            "confirm_password": "Password123!",
         })
         client.post("/login", data={
-            "email": "u@test.com", "password": "password123",
+            "email": "u@test.com", "password": "Password123!",
         })
 
     def test_dashboard_redirects_when_logged_out(self, client):
@@ -87,11 +87,11 @@ class TestAuthProtection:
 class TestExpenseCRUD:
     def _login(self, client):
         client.post("/register", data={
-            "name": "U", "email": "u@test.com", "password": "password123",
-            "confirm_password": "password123",
+            "name": "U", "email": "u@test.com", "password": "Password123!",
+            "confirm_password": "Password123!",
         })
         client.post("/login", data={
-            "email": "u@test.com", "password": "password123",
+            "email": "u@test.com", "password": "Password123!",
         })
 
     def _add(self, client, amount="100", category="Food", date="2026-07-01",
@@ -152,11 +152,11 @@ class TestExpenseCRUD:
 class TestLedger:
     def _setup(self, client):
         client.post("/register", data={
-            "name": "U", "email": "u@test.com", "password": "password123",
-            "confirm_password": "password123",
+            "name": "U", "email": "u@test.com", "password": "Password123!",
+            "confirm_password": "Password123!",
         })
         client.post("/login", data={
-            "email": "u@test.com", "password": "password123",
+            "email": "u@test.com", "password": "Password123!",
         })
         client.post("/expenses/add", data={
             "amount": "300", "category": "Food", "date": "2026-07-01",
@@ -193,11 +193,11 @@ class TestLedger:
 class TestProfile:
     def _login(self, client):
         client.post("/register", data={
-            "name": "Alice", "email": "alice@test.com", "password": "password123",
-            "confirm_password": "password123",
+            "name": "Alice", "email": "alice@test.com", "password": "Password123!",
+            "confirm_password": "Password123!",
         })
         client.post("/login", data={
-            "email": "alice@test.com", "password": "password123",
+            "email": "alice@test.com", "password": "Password123!",
         })
 
     def test_profile_page(self, client):
@@ -217,8 +217,8 @@ class TestProfile:
     def test_change_password(self, client):
         self._login(client)
         r = client.post("/profile", data={
-            "action": "change_password", "current_password": "password123",
-            "new_password": "newpass456", "confirm_password": "newpass456",
+            "action": "change_password", "current_password": "Password123!",
+            "new_password": "NewPass456!", "confirm_password": "NewPass456!",
         }, follow_redirects=True)
         assert b"Password changed" in r.data
 
@@ -226,11 +226,11 @@ class TestProfile:
 class TestExport:
     def test_csv_export(self, client):
         client.post("/register", data={
-            "name": "U", "email": "u@test.com", "password": "password123",
-            "confirm_password": "password123",
+            "name": "U", "email": "u@test.com", "password": "Password123!",
+            "confirm_password": "Password123!",
         })
         client.post("/login", data={
-            "email": "u@test.com", "password": "password123",
+            "email": "u@test.com", "password": "Password123!",
         })
         client.post("/expenses/add", data={
             "amount": "100", "category": "Food", "date": "2026-07-01",
@@ -245,11 +245,11 @@ class TestExport:
 class TestInvestments:
     def _login(self, client):
         client.post("/register", data={
-            "name": "U", "email": "u@test.com", "password": "password123",
-            "confirm_password": "password123",
+            "name": "U", "email": "u@test.com", "password": "Password123!",
+            "confirm_password": "Password123!",
         })
         client.post("/login", data={
-            "email": "u@test.com", "password": "password123",
+            "email": "u@test.com", "password": "Password123!",
         })
 
     def _add(self, client, name="Test Fund", category="mutual_funds", invested="50000",

@@ -10,3 +10,4 @@ spendly.db
 .claude/settings.local.json
 .aider*
 static/uploads/
+logs/

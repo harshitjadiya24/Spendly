@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Import CSV — Spendly{% endblock %}
+
+{% block content %}
+
+<section class="auth-section">
+  <div class="auth-container">
+    <div class="auth-header">
+      <h1 class="auth-title">Import transactions</h1>
+      <p class="auth-subtitle">Upload a CSV from your bank, GPay, or PhonePe</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="flash-bar flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+    {% endwith %}
+
+    <div class="auth-card">
+      <form method="POST" action="{{ url_for('import_csv') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div class="form-group">
+          <label for="file">CSV file</label>
+          <input type="file" id="file" name="file" class="form-input" accept=".csv" required>
+        </div>
+
+        <p style="font-size:0.85rem;color:var(--ink-muted);margin-bottom:1.25rem;">
+          Columns are auto-detected. Supported formats: Date, Amount, Description, Type (Debit/Credit).
+        </p>
+
+        <button type="submit" class="btn-submit">Upload &amp; import</button>
+      </form>
+    </div>
+
+    <div class="auth-card" style="margin-top:1.5rem;">
+      <h2 style="font-family:var(--font-display);font-size:1.1rem;color:var(--ink);margin-bottom:1rem;">Expected columns</h2>
+      <table class="expense-table">
+        <thead>
+          <tr>
+            <th>Column</th>
+            <th>Examples</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Date</td><td style="color:var(--ink-muted);">Transaction Date, Txn Date, Value Dat</td></tr>
+          <tr><td>Amount</td><td style="color:var(--ink-muted);">Amount, Withdrawal, Deposit, Debit, Credit</td></tr>
+          <tr><td>Description</td><td style="color:var(--ink-muted);">Narration, Particulars, Memo, Details</td></tr>
+          <tr><td>Type (optional)</td><td style="color:var(--ink-muted);">Debit/Credit, Dr/Cr, Expense/Income</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:0.8rem;color:var(--ink-faint);margin-top:1rem;">
+        Categories are auto-assigned based on description keywords. You can edit after import.
+      </p>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

@@ -10,7 +10,8 @@
 {% endfor %}
 {% endwith %}
 
-<section class="hero hero-centered">
+<section class="hero">
+    <div class="hero-split">
     <div class="hero-inner">
         <div class="hero-badge">Personal Finance Tracker</div>
         <h1 class="hero-title">
@@ -23,22 +24,6 @@
         </p>
         <div class="hero-actions">
             <a href="{{ url_for('dashboard' if session.user_id else 'register') }}" class="btn-primary">Start tracking{{ '' if session.user_id else ' free' }}</a>
-            <button class="btn-play" id="howItWorksBtn">▶ See how it works</button>
-        </div>
-    </div>
-
-    <div class="modal-overlay" id="videoModal">
-        <div class="modal-content">
-            <button class="modal-close" id="closeModal">&times;</button>
-            <div class="modal-video-wrap">
-                <iframe
-                    src="https://www.youtube.com/embed/dQw4w9WgXcQ"
-                    title="How Spendly works"
-                    frameborder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowfullscreen
-                ></iframe>
-            </div>
         </div>
     </div>
 
@@ -99,6 +84,7 @@
             {% endif %}
         </div>
     </div>
+    </div>
 </section>
 
 <section class="features">
@@ -119,6 +105,51 @@
             <p class="feature-body">View your spending for any date range — last week, last month, or a custom period.</p>
         </div>
     </div>
+</section>
+
+<section class="how-to-use">
+  <div class="how-to-use-inner">
+    <h2 class="section-title">How to Use Spendly</h2>
+    <div class="how-to-use-grid">
+
+      <div class="how-to-step">
+        <span class="how-to-step-num">1</span>
+        <h3 class="how-to-step-title">Create your account</h3>
+        <p class="how-to-step-body">Sign up in seconds with your email and a strong password. No credit card needed — start tracking for free right away. Your data stays private.</p>
+      </div>
+
+      <div class="how-to-step">
+        <span class="how-to-step-num">2</span>
+        <h3 class="how-to-step-title">Add expenses to accounts</h3>
+        <p class="how-to-step-body">Log income or expenses with category, amount, and date. Link each transaction to a wallet or bank account, and switch between INR, USD, EUR, and more. Scan receipt images to auto-fill fields.</p>
+      </div>
+
+      <div class="how-to-step">
+        <span class="how-to-step-num">3</span>
+        <h3 class="how-to-step-title">Set budgets, goals &amp; alerts</h3>
+        <p class="how-to-step-body">Create monthly budgets per category with optional rollover for unused amounts. Track savings goals with progress bars, and get alerts when budgets are near limits or bills are due.</p>
+      </div>
+
+      <div class="how-to-step">
+        <span class="how-to-step-num">4</span>
+        <h3 class="how-to-step-title">Track loans, splits &amp; investments</h3>
+        <p class="how-to-step-body">Record loans given or taken with EMI tracking. Split expenses with friends and settle up later. Monitor mutual funds, FDs, and stocks with real-time P&amp;L — all in one dashboard.</p>
+      </div>
+
+      <div class="how-to-step">
+        <span class="how-to-step-num">5</span>
+        <h3 class="how-to-step-title">Auto-categorize with rules</h3>
+        <p class="how-to-step-body">Set up categorization rules so recurring expenses like "Swiggy" or "Netflix" are automatically tagged. Imported CSV transactions from GPay, PhonePe, or your bank get categorized instantly.</p>
+      </div>
+
+      <div class="how-to-step">
+        <span class="how-to-step-num">6</span>
+        <h3 class="how-to-step-title">Review, forecast &amp; export</h3>
+        <p class="how-to-step-body">Browse your full ledger with filters by account, category, or date. Check your 30-day cash flow forecast, financial health score, and recurring bills. Export to CSV anytime for tax filing.</p>
+      </div>
+
+    </div>
+  </div>
 </section>
 
 <section class="cta-section">

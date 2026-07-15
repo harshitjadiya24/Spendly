@@ -43,7 +43,7 @@
         <div class="form-group">
           <label for="interest_rate">Interest rate (%)</label>
           <input type="text" id="interest_rate" name="interest_rate" class="form-input"
-                 placeholder="8.5" value="{{ '%.2f'|format(loan.interest_rate) if edit else '0' }}">
+                 placeholder="8.5" value="{{ '%.2f'|format(loan.interest_rate or 0) if edit else '0' }}">
         </div>
 
         <div class="form-group">

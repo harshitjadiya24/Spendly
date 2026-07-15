@@ -4,6 +4,29 @@
 
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+.chart-controls { display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; }
+.period-btn { padding:0.3rem 0.75rem; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--paper-card); color:var(--ink-muted); cursor:pointer; font-size:0.85rem; font-weight:500; transition:all 0.2s; }
+.period-btn:hover { border-color:var(--accent); color:var(--accent); }
+.period-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
+@media (max-width:800px) { .chart-grid { grid-template-columns:1fr; } }
+.chart-card-full { background:var(--paper-card); border:1px solid var(--border); border-radius:var(--radius-md); padding:1.5rem; margin-bottom:1.5rem; box-shadow:var(--shadow-sm); }
+.chart-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem; }
+.chart-header h2 { margin:0; font-size:1.1rem; font-weight:600; }
+.chart-summary { display:flex; gap:1.5rem; flex-wrap:wrap; margin-bottom:0.75rem; }
+.chart-stat { font-size:0.85rem; }
+.chart-stat-label { color:var(--ink-muted); }
+.chart-stat-value { font-weight:600; font-variant-numeric:tabular-nums; }
+.health-gauge { text-align:center; }
+.health-gauge svg { width:120px; height:120px; }
+.health-score { font-family:var(--font-display); font-size:2.5rem; font-weight:700; }
+.health-breakdown { display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; font-size:0.85rem; }
+.health-item { display:flex; justify-content:space-between; align-items:center; padding:0.4rem 0; border-bottom:1px solid var(--border-soft); }
+.health-item-label { color:var(--ink-muted); }
+.health-item-score { font-weight:600; }
+.forecast-sparkline { width:100%; height:80px; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -33,10 +56,126 @@
     <a href="{{ url_for('add_expense') }}" class="btn-primary">+ Add</a>
   </div>
 
-  {# --- Trends chart --- #}
-  <div class="chart-card">
-    <h2 class="section-subtitle">Spending trends (12 months)</h2>
-    <canvas id="trendsChart" width="800" height="280" style="max-width:100%;"></canvas>
+  {# --- Financial health + Cash flow forecast side by side --- #}
+  <div class="chart-grid">
+    {% if health %}
+    <div class="chart-card-full dashboard-card-sm">
+      <div class="chart-header">
+        <h2>Financial health</h2>
+        <span class="chart-stat"><span class="chart-stat-value">{{ health.score }}/100</span></span>
+      </div>
+      <div class="dashboard-card-body-sm">
+        <div class="health-gauge">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="44" fill="none" stroke="var(--border-soft)" stroke-width="8"/>
+            <circle cx="50" cy="50" r="44" fill="none" stroke="var(--accent)" stroke-width="8"
+              stroke-dasharray="{{ 276.46 * health.score / 100 }} 276.46"
+              transform="rotate(-90 50 50)" style="transition:stroke-dasharray 0.8s ease;"/>
+            <text x="50" y="50" text-anchor="middle" dominant-baseline="central"
+              font-size="22" font-weight="700" fill="var(--ink)">{{ health.score }}</text>
+          </svg>
+        </div>
+        <div class="health-breakdown">
+          {% for key, item in health.breakdown.items() %}
+          <div class="health-item-sm">
+            <span class="health-item-label">{{ key|replace('_', ' ')|title }}</span>
+            <span class="health-item-score" style="color:{{ 'var(--accent)' if item.score >= item.max * 0.6 else 'var(--accent-2)' if item.score >= item.max * 0.3 else 'var(--danger)' }};">{{ item.score }}/{{ item.max }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="chart-card-full dashboard-card-sm" id="forecastCard">
+      <div class="chart-header">
+        <h2>Cash flow forecast</h2>
+        <span class="chart-stat"><span class="chart-stat-value" id="forecastStatus">Loading...</span></span>
+      </div>
+      <div class="dashboard-card-body-sm" style="display:flex;align-items:center;justify-content:center;min-height:120px;">
+        <canvas id="forecastChart" width="800" height="120" style="max-width:100%;height:120px;width:100%;"></canvas>
+      </div>
+    </div>
+  </div>
+
+  {# --- Upcoming bills + Settlements side by side --- #}
+  <div class="chart-grid">
+    {% if recurring %}
+    <div class="chart-card-full dashboard-card-sm">
+      <div class="chart-header">
+        <h2>Upcoming bills</h2>
+        <span class="chart-stat"><span class="chart-stat-value">{{ recurring|length }}</span></span>
+      </div>
+      <div class="dashboard-card-body-sm">
+        {% for r in recurring[:6] %}
+        <div class="bill-row">
+          <span class="bill-row-label">{{ r.description or r.category }}</span>
+          <span class="bill-row-meta">{{ r.frequency|capitalize }} &middot; {{ r.next_date }}</span>
+          <span class="bill-row-amt">₹{{ "%.0f"|format(r.amount) }}</span>
+        </div>
+        {% endfor %}
+        {% if recurring|length > 6 %}
+        <div style="text-align:center;margin-top:0.5rem;">
+          <span class="chart-stat-value" style="font-size:0.85rem;color:var(--ink-muted);">+{{ recurring|length - 6 }} more</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if settlements %}
+    <div class="chart-card-full dashboard-card-sm">
+      <div class="chart-header">
+        <h2>Settlements</h2>
+      </div>
+      <div class="dashboard-card-body-sm">
+        {% for s in settlements %}
+        <div class="bill-row">
+          <span class="bill-row-label">{{ s.name }}</span>
+          <span class="bill-row-amt" style="color:var(--danger);">₹{{ "%.0f"|format(s.owing) }}</span>
+          <form method="POST" action="{{ url_for('settle_split') }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="name" value="{{ s.name }}">
+            <button type="submit" class="btn-ghost-sm">Settle up</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# --- Enhanced trends chart --- #}
+  <div class="chart-card-full">
+    <div class="chart-header">
+      <h2>Spending trends</h2>
+      <div class="chart-controls" id="periodControls">
+        <button class="period-btn" data-period="day">1 day</button>
+        <button class="period-btn" data-period="week">Last week</button>
+        <button class="period-btn" data-period="month">Last month</button>
+        <button class="period-btn active" data-period="year">Last year</button>
+      </div>
+    </div>
+    <div class="chart-summary" id="chartSummary"></div>
+    <canvas id="trendsChart" width="800" height="300" style="max-width:100%;"></canvas>
+  </div>
+
+  {# --- Category breakdown (doughnut) + stacked bar --- #}
+  <div class="chart-grid">
+    <div class="chart-card-full">
+      <div class="chart-header">
+        <h2>Spending by category</h2>
+        <span class="chart-stat"><span class="chart-stat-label">Period: </span><span class="chart-stat-value" id="categoryPeriodLabel">Last year</span></span>
+      </div>
+      <canvas id="categoryChart" width="400" height="320" style="max-width:100%;max-height:320px;"></canvas>
+    </div>
+    <div class="chart-card-full">
+      <div class="chart-header">
+        <h2>Category trends</h2>
+        <span class="chart-stat"><span class="chart-stat-label">Period: </span><span class="chart-stat-value" id="stackedPeriodLabel">Last year</span></span>
+      </div>
+      <canvas id="categoryStackedChart" width="400" height="320" style="max-width:100%;max-height:320px;"></canvas>
+    </div>
   </div>
 
   {# --- Budgets --- #}
@@ -72,7 +211,7 @@
 
   {# --- Loans summary --- #}
   {% if loan_count > 0 %}
-  <div class="chart-card">
+  <div class="chart-card-full">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
       <h2 class="section-subtitle" style="margin:0;">Active loans</h2>
       <a href="{{ url_for('loans') }}" class="btn-ghost-sm">Manage</a>
@@ -100,7 +239,7 @@
 
   {# --- Investments summary --- #}
   {% if inv_count > 0 %}
-  <div class="chart-card">
+  <div class="chart-card-full">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
       <h2 class="section-subtitle" style="margin:0;">Investments</h2>
       <a href="{{ url_for('investments') }}" class="btn-ghost-sm">Manage</a>
@@ -126,94 +265,447 @@
   </div>
   {% endif %}
 
-  {# --- Transactions --- #}
-  <div class="dashboard-card">
-    <h2 class="section-subtitle">Transactions — {{ month }}</h2>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% for category, message in messages %}
-    <div class="auth-{{ category }}">{{ message }}</div>
-    {% endfor %}
-    {% endwith %}
 
-    {% if expenses %}
-    <table class="expense-table">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Type</th>
-          <th>Category</th>
-          <th>Description</th>
-          <th class="col-amount">Amount</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for e in expenses %}
-        <tr>
-          <td>{{ e.date }}</td>
-          <td>{% if e.type == 'income' %}<span class="type-badge type-income">Income</span>{% else %}<span class="type-badge type-expense">Expense</span>{% endif %}</td>
-          <td><span class="cat-badge">{{ e.category }}</span></td>
-          <td>{{ e.description or "—" }}</td>
-          <td class="col-amount {% if e.type == 'income' %}income{% endif %}">₹{{ "%.2f"|format(e.amount) }}</td>
-          <td><a href="{{ url_for('edit_expense', id=e.id) }}" class="btn-ghost-sm">Edit</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div class="dashboard-empty">
-      <p>No transactions for {{ month }}.</p>
-      <p><a href="{{ url_for('add_expense') }}">Add your first transaction</a></p>
+  {# --- Accounts Summary --- #}
+  {% if accounts %}
+  <div class="dashboard-card">
+    <div class="chart-header">
+      <h2>Accounts</h2>
+      <span style="font-size:0.85rem;color:var(--ink-muted);">Net worth: <strong style="color:{{ 'var(--accent)' if net_worth >= 0 else 'var(--danger)' }};">₹{{ "{:,.0f}".format(net_worth) }}</strong></span>
     </div>
-    {% endif %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:0.75rem;">
+      {% for a in accounts %}
+      <div style="background:var(--paper-warm);border-radius:var(--radius-sm);padding:0.75rem;border:1px solid var(--border-soft);">
+        <div style="font-size:1.25rem;margin-bottom:0.25rem;">{{ a.icon or '🏦' }}</div>
+        <div style="font-weight:600;font-size:0.85rem;">{{ a.name }}</div>
+        <div style="font-size:0.75rem;color:var(--ink-muted);">{{ a.type|title }}</div>
+        <div style="font-weight:600;font-size:0.9rem;margin-top:0.25rem;">₹{{ "{:,.0f}".format(a.balance) }}</div>
+      </div>
+      {% endfor %}
+    </div>
   </div>
+  {% endif %}
+
+  {# --- Savings Goals --- #}
+  {% if goals %}
+  <div class="dashboard-card">
+    <div class="chart-header">
+      <h2>Savings Goals</h2>
+      <a href="{{ url_for('goals') }}" class="btn-ghost-sm">Manage</a>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.75rem;">
+      {% for g in goals %}
+      {% set pct = (g.current_amount / g.target_amount * 100)|round if g.target_amount > 0 else 0 %}
+      <div style="background:var(--paper-warm);border-radius:var(--radius-sm);padding:0.75rem;border:1px solid var(--border-soft);">
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+          <span style="font-size:1.2rem;">{{ g.icon or '🎯' }}</span>
+          <span style="font-weight:600;font-size:0.85rem;">{{ g.name }}</span>
+        </div>
+        <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:0.4rem;">
+          <div style="height:100%;width:{{ pct }}%;background:var(--accent);border-radius:3px;transition:width 0.5s;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--ink-muted);">
+          <span>₹{{ "{:,.0f}".format(g.current_amount) }}</span>
+          <span>₹{{ "{:,.0f}".format(g.target_amount) }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# --- Alerts --- #}
+  {% if unread_alerts %}
+  <div class="dashboard-card">
+    <div class="chart-header">
+      <h2>Alerts</h2>
+      <form method="POST" action="{{ url_for('mark_alerts_read') }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn-ghost-sm">Dismiss all</button>
+      </form>
+    </div>
+    {% for a in unread_alerts %}
+    <div style="padding:0.6rem 0;border-bottom:1px solid var(--border-soft);display:flex;align-items:flex-start;gap:0.5rem;">
+      <span style="font-size:1rem;">{% if a.type == 'budget_warning' %}⚠️{% elif a.type == 'budget_exceeded' %}🚫{% elif a.type == 'bill_due' %}📅{% elif a.type == 'goal_milestone' %}🎉{% else %}🔔{% endif %}</span>
+      <div style="flex:1;font-size:0.85rem;">
+        <strong>{{ a.title }}</strong>
+        <div style="color:var(--ink-muted);font-size:0.8rem;">{{ a.message }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
 </section>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-fetch('/api/trends')
-  .then(r => r.json())
-  .then(data => {
-    new Chart(document.getElementById('trendsChart'), {
-      type: 'line',
-      data: {
-        labels: data.map(d => d.month),
-        datasets: [
-          {
-            label: 'Spent',
-            data: data.map(d => d.spent),
-            borderColor: '#dc2626',
-            backgroundColor: 'rgba(220,38,38,0.08)',
-            fill: true,
-            tension: 0.3,
-            pointRadius: 4,
+const CATEGORY_COLORS = {
+  'Food': '#ef4444', 'Transport': '#f97316', 'Bills': '#eab308', 'Health': '#22c55e',
+  'Entertainment': '#a855f7', 'Shopping': '#ec4899', 'Salary': '#3b82f6', 'Other': '#6b7280'
+};
+const CHART_COLORS = {
+  spent: { border: '#ef4444', bg: 'rgba(239,68,68,0.12)', bgGrad: 'rgba(239,68,68,0.25)' },
+  earned: { border: '#22c55e', bg: 'rgba(34,197,94,0.12)', bgGrad: 'rgba(34,197,94,0.25)' },
+  net: { border: '#3b82f6', bg: 'rgba(59,130,246,0.10)', bgGrad: 'rgba(59,130,246,0.20)' },
+  movingAvg: { border: '#a855f7', bg: 'rgba(168,85,247,0.06)' },
+};
+
+const PERIOD_LABELS = { day: '1 day', week: 'Last week', month: 'Last month', year: 'Last year' };
+
+let trendsChart = null;
+let categoryChart = null;
+let categoryStackedChart = null;
+let currentPeriod = 'year';
+
+function formatCurrency(v) { return '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:0}); }
+
+function buildGradient(ctx, chartArea, color) {
+  if (!chartArea) return color;
+  const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+  g.addColorStop(0, color);
+  g.addColorStop(1, 'rgba(0,0,0,0.02)');
+  return g;
+}
+
+function formatLabel(m, period) {
+  const [y, rest] = m.split('-');
+  if (period === 'year') {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[parseInt(rest)-1] + ' ' + y;
+  }
+  if (period === 'day') return rest;
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return months[parseInt(y)-1] + ' ' + parseInt(rest);
+}
+
+function renderTrends(data) {
+  const ctx = document.getElementById('trendsChart').getContext('2d');
+  if (trendsChart) trendsChart.destroy();
+
+  const labels = data.map(d => formatLabel(d.month, currentPeriod));
+
+  trendsChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Spent',
+          data: data.map(d => d.spent),
+          borderColor: CHART_COLORS.spent.border,
+          backgroundColor: function(c) {
+            if (!c.chart.chartArea) return CHART_COLORS.spent.bg;
+            return buildGradient(c.chart.ctx, c.chart.chartArea, CHART_COLORS.spent.bgGrad);
           },
-          {
-            label: 'Income',
-            data: data.map(d => d.earned),
-            borderColor: '#16a34a',
-            backgroundColor: 'rgba(22,163,74,0.08)',
-            fill: true,
-            tension: 0.3,
-            pointRadius: 4,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { position: 'top' },
+          fill: true,
+          tension: 0.35,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          borderWidth: 2,
         },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { callback: v => '₹' + v.toLocaleString() },
+        {
+          label: 'Income',
+          data: data.map(d => d.earned),
+          borderColor: CHART_COLORS.earned.border,
+          backgroundColor: function(c) {
+            if (!c.chart.chartArea) return CHART_COLORS.earned.bg;
+            return buildGradient(c.chart.ctx, c.chart.chartArea, CHART_COLORS.earned.bgGrad);
+          },
+          fill: true,
+          tension: 0.35,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          borderWidth: 2,
+        },
+        {
+          label: 'Net',
+          data: data.map(d => d.net),
+          borderColor: CHART_COLORS.net.border,
+          backgroundColor: function(c) {
+            if (!c.chart.chartArea) return CHART_COLORS.net.bg;
+            return buildGradient(c.chart.ctx, c.chart.chartArea, CHART_COLORS.net.bgGrad);
+          },
+          fill: true,
+          tension: 0.35,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          borderWidth: 1.5,
+          borderDash: [5, 3],
+        },
+        {
+          label: '3mo avg (spent)',
+          data: data.map(d => d.moving_avg),
+          borderColor: CHART_COLORS.movingAvg.border,
+          backgroundColor: CHART_COLORS.movingAvg.bg,
+          fill: false,
+          tension: 0.3,
+          pointRadius: 2,
+          pointHoverRadius: 4,
+          borderWidth: 2,
+          borderDash: [8, 4],
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            usePointStyle: true,
+            padding: 16,
+            font: { size: 12 },
+          },
+          onClick: function(e, legendItem, legend) {
+            const index = legendItem.datasetIndex;
+            const ci = legend.chart;
+            const meta = ci.getDatasetMeta(index);
+            meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
+            ci.update();
+          },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          titleFont: { size: 13, weight: '600' },
+          bodyFont: { size: 12 },
+          padding: 12,
+          cornerRadius: 8,
+          callbacks: {
+            label: function(ctx) {
+              let label = ctx.dataset.label || '';
+              if (label) label += ': ';
+              if (ctx.parsed.y !== null) label += formatCurrency(ctx.parsed.y);
+              return label;
+            },
+            afterBody: function(items) {
+              const d = data[items[0].dataIndex];
+              if (!d) return [];
+              const net = d.earned - d.spent;
+              return [
+                'Spent: ' + formatCurrency(d.spent),
+                'Income: ' + formatCurrency(d.earned),
+                'Net: ' + formatCurrency(net),
+              ];
+            },
           },
         },
       },
-    });
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: v => '₹' + Number(v).toLocaleString('en-IN'),
+          },
+          grid: { color: 'rgba(0,0,0,0.06)' },
+        },
+        x: {
+          grid: { display: false },
+          ticks: { maxTicksLimit: 15 },
+        },
+      },
+    },
   });
+
+  // Update summary stats
+  const totalSpent = data.reduce((s, d) => s + d.spent, 0);
+  const totalEarned = data.reduce((s, d) => s + d.earned, 0);
+  const avgSpent = totalSpent / data.length;
+  const bestMonth = data.reduce((a, b) => a.spent < b.spent ? a : b);
+  const worstMonth = data.reduce((a, b) => a.spent > b.spent ? a : b);
+  document.getElementById('chartSummary').innerHTML =
+    '<span class="chart-stat"><span class="chart-stat-label">Total spent: </span><span class="chart-stat-value" style="color:'+CHART_COLORS.spent.border+'">' + formatCurrency(totalSpent) + '</span></span>' +
+    '<span class="chart-stat"><span class="chart-stat-label">Total earned: </span><span class="chart-stat-value" style="color:'+CHART_COLORS.earned.border+'">' + formatCurrency(totalEarned) + '</span></span>' +
+    '<span class="chart-stat"><span class="chart-stat-label">Monthly avg: </span><span class="chart-stat-value">' + formatCurrency(avgSpent) + '</span></span>' +
+    '<span class="chart-stat"><span class="chart-stat-label">Best: </span><span class="chart-stat-value" style="color:'+CHART_COLORS.earned.border+'">' + bestMonth.month + '</span></span>' +
+    '<span class="chart-stat"><span class="chart-stat-label">Worst: </span><span class="chart-stat-value" style="color:'+CHART_COLORS.spent.border+'">' + worstMonth.month + '</span></span>';
+}
+
+function renderCategoryChart(data) {
+  const ctx = document.getElementById('categoryChart').getContext('2d');
+  if (categoryChart) categoryChart.destroy();
+
+  const total = data.reduce((s, d) => s + d.total, 0);
+  categoryChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: data.map(d => d.category),
+      datasets: [{
+        data: data.map(d => d.total),
+        backgroundColor: data.map(d => CATEGORY_COLORS[d.category] || '#6b7280'),
+        borderWidth: 2,
+        borderColor: 'var(--paper-card)',
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      cutout: '55%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            padding: 12,
+            usePointStyle: true,
+            font: { size: 11 },
+            generateLabels: function(c) {
+              const labels = Chart.defaults.plugins.legend.labels.generateLabels(c);
+              return labels.map(l => ({
+                ...l,
+                text: l.text + ' (' + Math.round(data[l.datasetIndex || 0].total / total * 100) + '%)',
+              }));
+            },
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              const val = ctx.parsed;
+              const pct = ((val / total) * 100).toFixed(1);
+              return ' ' + ctx.label + ': ' + formatCurrency(val) + ' (' + pct + '%)';
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+function renderCategoryStackedChart(data) {
+  const ctx = document.getElementById('categoryStackedChart').getContext('2d');
+  if (categoryStackedChart) categoryStackedChart.destroy();
+
+  const months = [...new Set(data.map(d => d.month))].sort();
+  const categories = [...new Set(data.map(d => d.category))];
+  const catOrder = ['Food','Transport','Bills','Health','Entertainment','Shopping','Other'];
+  categories.sort((a, b) => catOrder.indexOf(a) - catOrder.indexOf(b));
+
+  const monthLabels = months.map(m => {
+    const [y, mo] = m.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[parseInt(mo)-1] + ' ' + y;
+  });
+
+  const datasets = categories.map(cat => ({
+    label: cat,
+    data: months.map(m => {
+      const found = data.find(d => d.month === m && d.category === cat);
+      return found ? found.total : 0;
+    }),
+    backgroundColor: CATEGORY_COLORS[cat] || '#6b7280',
+  }));
+
+  categoryStackedChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: monthLabels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          ticks: { callback: v => '₹' + Number(v).toLocaleString('en-IN') },
+        },
+      },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { usePointStyle: true, font: { size: 10 }, padding: 10 },
+        },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              return ' ' + ctx.dataset.label + ': ' + formatCurrency(ctx.parsed.y);
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+function fetchData(period) {
+  currentPeriod = period;
+  document.getElementById('categoryPeriodLabel').textContent = PERIOD_LABELS[period];
+  document.getElementById('stackedPeriodLabel').textContent = PERIOD_LABELS[period];
+  Promise.all([
+    fetch('/api/trends?period=' + period).then(r => r.json()),
+    fetch('/api/category-trends?period=' + period).then(r => r.json()),
+    fetch('/api/monthly-category-trends?period=' + period).then(r => r.json()),
+  ]).then(([trends, categories, monthlyCat]) => {
+    renderTrends(trends);
+    renderCategoryChart(categories);
+    renderCategoryStackedChart(monthlyCat);
+  });
+}
+
+// --- Forecast sparkline ---
+function renderForecast(data) {
+  const ctx = document.getElementById('forecastChart').getContext('2d');
+  const labels = data.map(d => {
+    const parts = d.date.split('-');
+    return parseInt(parts[1]) + '/' + parseInt(parts[2]);
+  });
+  const balances = data.map(d => d.balance);
+  const min = Math.min(...balances);
+  const max = Math.max(...balances);
+  const finalBal = balances[balances.length - 1];
+  document.getElementById('forecastStatus').innerHTML =
+    'Projected: ' + formatCurrency(finalBal) +
+    ' <span style="color:' + (finalBal >= 0 ? 'var(--accent)' : 'var(--danger)') + '">' +
+    (finalBal >= 0 ? '&#9650;' : '&#9660;') + '</span>';
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: balances,
+        borderColor: finalBal >= 0 ? '#22c55e' : '#ef4444',
+        backgroundColor: function(c) {
+          if (!c.chart.chartArea) return 'rgba(34,197,94,0.1)';
+          const g = c.chart.ctx.createLinearGradient(0, c.chart.chartArea.top, 0, c.chart.chartArea.bottom);
+          g.addColorStop(0, finalBal >= 0 ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)');
+          g.addColorStop(1, 'rgba(0,0,0,0.02)');
+          return g;
+        },
+        fill: true,
+        tension: 0.4,
+        pointRadius: 0,
+        borderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: { display: false, grid: { display: false } },
+        y: { display: false, grid: { display: false } },
+      },
+      elements: { point: { radius: 0 } },
+    },
+  });
+}
+
+fetch('/api/forecast').then(r => r.json()).then(renderForecast);
+
+// Period buttons
+document.querySelectorAll('.period-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    fetchData(this.dataset.period);
+  });
+});
+
+// Initial load
+fetchData('year');
 </script>
 {% endblock %}

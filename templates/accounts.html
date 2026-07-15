@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Accounts — Spendly{% endblock %}
+
+{% block content %}
+
+<section class="dashboard">
+  <div class="dashboard-header">
+    <div>
+      <h1 class="dashboard-title">Accounts</h1>
+      <div class="dashboard-total">Net worth: <strong>₹{{ "{:,.0f}".format(net_worth) }}</strong></div>
+    </div>
+    <button class="btn-primary" onclick="toggleAddForm()">+ Add account</button>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="flash-bar flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+  {% endwith %}
+
+  <div class="dashboard-metrics" style="margin-bottom:2rem;">
+    <div class="metric-sm">
+      <span class="metric-sm-label">Total balance</span>
+      <span class="metric-sm-value income">₹{{ "{:,.0f}".format(total_balance) }}</span>
+    </div>
+    <div class="metric-sm">
+      <span class="metric-sm-label">Credit</span>
+      <span class="metric-sm-value spent" style="color:var(--danger);">₹{{ "{:,.0f}".format(total_credit) }}</span>
+    </div>
+    <div class="metric-sm">
+      <span class="metric-sm-label">Net worth</span>
+      <span class="metric-sm-value" style="color:var(--accent);font-weight:600;">₹{{ "{:,.0f}".format(net_worth) }}</span>
+    </div>
+  </div>
+
+  {% set type_colors = {
+    'checking': 'var(--accent)',
+    'savings': 'var(--accent)',
+    'cash': 'var(--accent-2)',
+    'credit': 'var(--danger)',
+    'investment': '#7c3aed',
+    'other': 'var(--ink-muted)',
+  } %}
+
+  <div id="addAccountForm" class="dashboard-card" style="margin-bottom:1.5rem;display:none;">
+    <h2 style="font-family:var(--font-display);font-size:1.1rem;color:var(--ink);margin-bottom:1.25rem;">Add account</h2>
+    <form method="POST" action="{{ url_for('add_account') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="budget-form-row">
+        <input type="text" name="name" class="form-input" style="width:160px;" placeholder="Account name" required>
+        <select name="type" class="form-input" style="width:auto;" required>
+          <option value="checking">Checking</option>
+          <option value="savings">Savings</option>
+          <option value="cash">Cash</option>
+          <option value="credit">Credit</option>
+          <option value="investment">Investment</option>
+          <option value="other">Other</option>
+        </select>
+        <select name="currency" class="form-input" style="width:auto;" required>
+          <option value="INR">INR</option>
+          <option value="USD">USD</option>
+          <option value="EUR">EUR</option>
+          <option value="GBP">GBP</option>
+          <option value="AED">AED</option>
+          <option value="SGD">SGD</option>
+        </select>
+        <input type="text" name="balance" class="form-input" style="width:120px;" placeholder="Balance" required>
+        <input type="text" name="icon" class="form-input" style="width:60px;" placeholder="Icon" maxlength="2">
+        <button type="submit" class="btn-primary btn-sm">Add</button>
+      </div>
+    </form>
+  </div>
+
+  {% if accounts %}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;">
+    {% for a in accounts %}
+    {% set tc = type_colors[a.type] %}
+    <div class="dashboard-card" style="display:flex;flex-direction:column;gap:0.75rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <span style="font-size:1.5rem;">{{ a.icon or '🏦' }}</span>
+          <div>
+            <div style="font-weight:600;color:var(--ink);">{{ a.name }}</div>
+            <span class="ledger-badge" style="--cat-color:{{ tc }};">{{ a.type|capitalize }}</span>
+          </div>
+        </div>
+        {% if a.is_default %}
+        <span class="type-badge type-income" style="font-size:0.65rem;">Default</span>
+        {% endif %}
+      </div>
+      <div style="font-size:1.25rem;font-weight:600;font-variant-numeric:tabular-nums;color:{{ 'var(--accent)' if a.type != 'credit' else 'var(--danger)' }};">
+        {{ a.currency or '₹' }}{{ "{:,.0f}".format(a.balance) }}
+      </div>
+      <div style="display:flex;gap:0.3rem;align-items:center;margin-top:auto;">
+        <button class="btn-ghost-sm" onclick="toggleEdit({{ a.id }})">Edit</button>
+        <form method="POST" action="{{ url_for('delete_account', id=a.id) }}" style="display:inline;"
+              onsubmit="var f=this;showConfirm('Delete account &laquo;{{ a.name }}&raquo;?',function(){f.submit();});return false;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn-ghost-sm" style="color:var(--danger);">Delete</button>
+        </form>
+      </div>
+
+      <div id="editForm{{ a.id }}" style="display:none;border-top:1px solid var(--border-soft);padding-top:0.75rem;">
+        <form method="POST" action="{{ url_for('edit_account', id=a.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div style="display:flex;flex-direction:column;gap:0.5rem;">
+            <input type="text" name="name" class="form-input" value="{{ a.name }}" style="font-size:0.85rem;padding:0.4rem 0.6rem;" required>
+            <div style="display:flex;gap:0.5rem;">
+              <input type="text" name="balance" class="form-input" value="{{ a.balance }}" style="font-size:0.85rem;padding:0.4rem 0.6rem;flex:1;" required>
+              <input type="text" name="icon" class="form-input" value="{{ a.icon or '' }}" style="font-size:0.85rem;padding:0.4rem 0.6rem;width:50px;" maxlength="2">
+            </div>
+            <div style="display:flex;gap:0.3rem;">
+              <button type="submit" class="btn-primary btn-sm" style="font-size:0.75rem;padding:0.3rem 0.6rem;">Save</button>
+              <button type="button" class="btn-ghost-sm" onclick="toggleEdit({{ a.id }})" style="font-size:0.75rem;padding:0.3rem 0.6rem;">Cancel</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="dashboard-card">
+    <div class="dashboard-empty">
+      <p>No accounts yet.</p>
+      <p><a href="#" onclick="toggleAddForm();return false;">Add your first account</a></p>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleAddForm() {
+  var el = document.getElementById('addAccountForm');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+function toggleEdit(id) {
+  var el = document.getElementById('editForm' + id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+{% endblock %}

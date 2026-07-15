@@ -11,6 +11,12 @@
       <p class="auth-subtitle">Log an expense or income entry</p>
     </div>
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="flash-bar flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+    {% endwith %}
+
     <div class="auth-card">
       {% if error %}
       <div class="auth-error">{{ error }}</div>
@@ -29,7 +35,7 @@
         <div class="form-group">
           <label for="amount">Amount (₹)</label>
           <input type="text" id="amount" name="amount" class="form-input"
-                 placeholder="450.00" required autofocus>
+                 placeholder="450.00" {% if scan_amount %}value="{{ scan_amount }}"{% endif %} required autofocus>
         </div>
 
         <div class="form-group">
@@ -51,8 +57,46 @@
         <div class="form-group">
           <label for="description">Description (optional)</label>
           <input type="text" id="description" name="description" class="form-input"
-                 placeholder="Weekly groceries">
+                 placeholder="Weekly groceries" {% if scan_description %}value="{{ scan_description }}"{% endif %}>
         </div>
+
+        <div class="form-group">
+          <label for="account_id">Account (optional)</label>
+          <select id="account_id" name="account_id" class="form-input">
+            <option value="">No account</option>
+            {% for a in accounts %}
+            <option value="{{ a.id }}" {% if a.is_default %}selected{% endif %}>{{ a.icon or '🏦' }} {{ a.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-row" style="display:flex;gap:0.75rem;">
+          <div class="form-group" style="flex:1;">
+            <label for="currency">Currency</label>
+            <select id="currency" name="currency" class="form-input">
+              <option value="INR">INR (₹)</option>
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option>
+              <option value="AED">AED (د.إ)</option>
+              <option value="SGD">SGD (S$)</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label for="exchange_rate">Rate (1 INR = ?)</label>
+            <input type="text" id="exchange_rate" name="exchange_rate" class="form-input" value="1" placeholder="1">
+          </div>
+        </div>
+
+        <details style="margin-bottom:1.25rem;">
+          <summary style="cursor:pointer;font-size:0.85rem;color:var(--ink-muted);font-weight:500;">Split with others</summary>
+          <div class="form-group" style="margin-top:0.75rem;">
+            <label for="split_names">People to split with (comma-separated)</label>
+            <input type="text" id="split_names" name="split_names" class="form-input"
+                   placeholder="Ajay, Priya, Rahul">
+            <span style="font-size:0.75rem;color:var(--ink-faint);">Each person gets an equal share.</span>
+          </div>
+        </details>
 
         <button type="submit" class="btn-submit">Save transaction</button>
       </form>

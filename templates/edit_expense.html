@@ -53,6 +53,30 @@
                  value="{{ expense.description or "" }}">
         </div>
 
+        <div class="form-group">
+          <label for="account_id">Account (optional)</label>
+          <select id="account_id" name="account_id" class="form-input">
+            <option value="">No account</option>
+            {% for a in accounts %}
+            <option value="{{ a.id }}" {% if expense.account_id == a.id %}selected{% endif %}>{{ a.icon or '🏦' }} {{ a.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-row" style="display:flex;gap:0.75rem;">
+          <div class="form-group" style="flex:1;">
+            <label for="currency">Currency</label>
+            <select id="currency" name="currency" class="form-input">
+              <option value="INR" {% if expense.currency == 'INR' or not expense.currency %}selected{% endif %}>INR (₹)</option>
+              <option value="USD" {% if expense.currency == 'USD' %}selected{% endif %}>USD ($)</option>
+              <option value="EUR" {% if expense.currency == 'EUR' %}selected{% endif %}>EUR (€)</option>
+              <option value="GBP" {% if expense.currency == 'GBP' %}selected{% endif %}>GBP (£)</option>
+              <option value="AED" {% if expense.currency == 'AED' %}selected{% endif %}>AED (د.إ)</option>
+              <option value="SGD" {% if expense.currency == 'SGD' %}selected{% endif %}>SGD (S$)</option>
+            </select>
+          </div>
+        </div>
+
         <button type="submit" class="btn-submit">Update transaction</button>
       </form>
 

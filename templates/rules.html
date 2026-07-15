@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Rules — Spendly{% endblock %}
+
+{% block content %}
+
+<section class="dashboard">
+  <div class="dashboard-header">
+    <div>
+      <h1 class="dashboard-title">Categorisation Rules</h1>
+    </div>
+    <a href="{{ url_for('dashboard') }}" class="btn-ghost">Back to dashboard</a>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="auth-{{ category }}">{{ message }}</div>
+  {% endfor %}
+  {% endwith %}
+
+  {% if error %}
+  <div class="auth-error">{{ error }}</div>
+  {% endif %}
+
+  <div class="dashboard-card" style="margin-bottom:2rem;">
+    <h2 style="font-family:var(--font-display);font-size:1.1rem;color:var(--ink);margin-bottom:1.25rem;">Add a rule</h2>
+    <form method="POST" action="{{ url_for('rules') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="budget-form-row">
+        <select name="match_type" class="form-input" style="width:auto;" required>
+          <option value="contains">contains</option>
+          <option value="starts_with">starts_with</option>
+          <option value="equals">equals</option>
+          <option value="regex">regex</option>
+        </select>
+        <input type="text" name="match_pattern" class="form-input" style="width:200px;" placeholder="Pattern" required>
+        <select name="assign_category" class="form-input" style="width:auto;" required>
+          <option value="">Category</option>
+          {% for cat in categories %}
+          <option value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+        <select name="assign_type" class="form-input" style="width:auto;" required>
+          <option value="expense">expense</option>
+          <option value="income">income</option>
+        </select>
+        <button type="submit" class="btn-primary btn-sm">Add rule</button>
+      </div>
+    </form>
+  </div>
+
+  {% if rules %}
+  <div class="dashboard-card">
+    <table class="expense-table">
+      <thead>
+        <tr>
+          <th>Match</th>
+          <th>Pattern</th>
+          <th>Assigns to</th>
+          <th>Priority</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rule in rules %}
+        <tr>
+          <td><span class="cat-badge">{{ rule.match_type }}</span></td>
+          <td><code style="font-size:0.85rem;color:var(--ink-soft);">{{ rule.match_pattern }}</code></td>
+          <td>
+            <span class="cat-badge">{{ rule.assign_category }}</span>
+            <span class="type-badge type-{{ 'income' if rule.assign_type == 'income' else 'expense' }}">{{ rule.assign_type }}</span>
+          </td>
+          <td style="color:var(--ink-muted);font-size:0.85rem;">{{ rule.priority }}</td>
+          <td>
+            <div class="loan-actions" style="justify-content:flex-end;">
+              <form method="POST" action="{{ url_for('move_rule', id=rule.id) }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="direction" value="up">
+                <button type="submit" class="btn-ghost-sm" title="Move up">&uarr;</button>
+              </form>
+              <form method="POST" action="{{ url_for('move_rule', id=rule.id) }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="direction" value="down">
+                <button type="submit" class="btn-ghost-sm" title="Move down">&darr;</button>
+              </form>
+              <form method="POST" action="{{ url_for('delete_rule', id=rule.id) }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn-ghost-sm" style="color:var(--danger);">Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="dashboard-card">
+    <div class="dashboard-empty">
+      <p>No rules yet. Add one above to start auto-categorising your transactions.</p>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}
